@@ -1,0 +1,1 @@
+# smei-student-app
