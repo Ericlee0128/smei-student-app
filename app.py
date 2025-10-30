@@ -43,9 +43,6 @@ st.markdown("""
     .completed-failed {
         border-left: 4px solid #e74c3c;
     }
-    .submitted {
-        border-left: 4px solid #f39c12;
-    }
     .pending {
         border-left: 4px solid #95a5a6;
     }
@@ -83,10 +80,6 @@ st.markdown("""
         background-color: #f8d7da;
         color: #721c24;
     }
-    .status-submitted {
-        background-color: #fff3cd;
-        color: #856404;
-    }
     .status-pending {
         background-color: #e2e3e5;
         color: #383d41;
@@ -111,9 +104,6 @@ st.markdown("""
     .status-failed-row {
         background-color: #f8d7da;
     }
-    .status-submitted-row {
-        background-color: #fff3cd;
-    }
     .status-pending-row {
         background-color: #f9f9f9;
     }
@@ -130,7 +120,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Assessment rules
+# Assessment rules - Updated with complete descriptions
 ASSESSMENT_RULES = {
     'EAP': {
         'assessments': [
@@ -144,17 +134,10 @@ ASSESSMENT_RULES = {
         'duration_ranges': [
             (1, 8, ['Intermediate Mid Course Test']),
             (9, 14, ['Intermediate Mid Course Test', 'Intermediate End Course Test']),
-            (15, 20,
-             ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test']),
-            (21, 26,
-             ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test',
-              'Upper Intermediate End Course Test']),
-            (27, 32,
-             ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test',
-              'Upper Intermediate End Course Test', 'Advanced Mid Course Test']),
-            (33, 36,
-             ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test',
-              'Upper Intermediate End Course Test', 'Advanced Mid Course Test', 'Advanced End Course Test'])
+            (15, 20, ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test']),
+            (21, 26, ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test', 'Upper Intermediate End Course Test']),
+            (27, 32, ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test', 'Upper Intermediate End Course Test', 'Advanced Mid Course Test']),
+            (33, 36, ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test', 'Upper Intermediate End Course Test', 'Advanced Mid Course Test', 'Advanced End Course Test'])
         ]
     },
     'General English': {
@@ -173,31 +156,14 @@ ASSESSMENT_RULES = {
         'duration_ranges': [
             (1, 8, ['Intermediate Mid Course Test']),
             (9, 14, ['Intermediate Mid Course Test', 'Intermediate End Course Test']),
-            (15, 20,
-             ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test']),
-            (21, 26,
-             ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test',
-              'Upper Intermediate End Course Test']),
-            (27, 32, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test',
-                      'Pre Intermediate End Course Test', 'Intermediate Mid Course Test']),
-            (33, 38, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test',
-                      'Pre Intermediate End Course Test', 'Intermediate Mid Course Test',
-                      'Intermediate End Course Test']),
-            (39, 44, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test',
-                      'Pre Intermediate End Course Test', 'Intermediate Mid Course Test',
-                      'Intermediate End Course Test', 'Upper Intermediate Mid Course Test']),
-            (45, 50, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test',
-                      'Pre Intermediate End Course Test', 'Intermediate Mid Course Test',
-                      'Intermediate End Course Test', 'Upper Intermediate Mid Course Test',
-                      'Upper Intermediate End Course Test']),
-            (51, 56, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test',
-                      'Pre Intermediate End Course Test', 'Intermediate Mid Course Test',
-                      'Intermediate End Course Test', 'Upper Intermediate Mid Course Test',
-                      'Upper Intermediate End Course Test', 'Advanced Mid Course Test']),
-            (57, 60, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test',
-                      'Pre Intermediate End Course Test', 'Intermediate Mid Course Test',
-                      'Intermediate End Course Test', 'Upper Intermediate Mid Course Test',
-                      'Upper Intermediate End Course Test', 'Advanced Mid Course Test', 'Advanced End Course Test'])
+            (15, 20, ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test']),
+            (21, 26, ['Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test', 'Upper Intermediate End Course Test']),
+            (27, 32, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test', 'Pre Intermediate End Course Test', 'Intermediate Mid Course Test']),
+            (33, 38, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test', 'Pre Intermediate End Course Test', 'Intermediate Mid Course Test', 'Intermediate End Course Test']),
+            (39, 44, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test', 'Pre Intermediate End Course Test', 'Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test']),
+            (45, 50, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test', 'Pre Intermediate End Course Test', 'Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test', 'Upper Intermediate End Course Test']),
+            (51, 56, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test', 'Pre Intermediate End Course Test', 'Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test', 'Upper Intermediate End Course Test', 'Advanced Mid Course Test']),
+            (57, 60, ['Elementary Mid Course Test', 'Elementary End Course Test', 'Pre Intermediate Mid Course Test', 'Pre Intermediate End Course Test', 'Intermediate Mid Course Test', 'Intermediate End Course Test', 'Upper Intermediate Mid Course Test', 'Upper Intermediate End Course Test', 'Advanced Mid Course Test', 'Advanced End Course Test'])
         ]
     }
 }
@@ -228,21 +194,18 @@ def load_student_data():
 
 
 def extract_score(value_str):
-    """Extract numeric score from a string, handling percentages and plain numbers"""
+    """Extract numeric score from a string"""
     if pd.isna(value_str) or value_str == '':
         return None
-
+        
     # Convert to string and clean
     value_str = str(value_str).strip()
-
-    # Remove percentage signs and other non-digit characters (except decimal point)
+    
+    # Remove all non-digit characters (except decimal point)
     cleaned = re.sub(r'[^\d.]', '', value_str)
-
+    
     try:
         score = float(cleaned)
-        # If original string had % and score is between 0 and 1, assume it's a percentage (e.g., 0.5 = 50%)
-        if '%' in value_str and score <= 1:
-            score = score * 100
         return score
     except (ValueError, TypeError):
         return None
@@ -254,7 +217,7 @@ def get_test_status(test_value):
         return 'Pending', 'pending'
 
     value_str = str(test_value).strip()
-
+    
     # Convert to lowercase for case-insensitive matching
     value_lower = value_str.lower()
 
@@ -270,8 +233,6 @@ def get_test_status(test_value):
     passed_keywords = ['passed', 'pass', 'completed', 'complete']
     # Failed status keywords
     failed_keywords = ['failed', 'fail']
-    # Submitted status keywords
-    submitted_keywords = ['submitted', 'submit']
 
     # Check passed status (case-insensitive)
     if any(keyword in value_lower for keyword in passed_keywords):
@@ -281,12 +242,8 @@ def get_test_status(test_value):
     if any(keyword in value_lower for keyword in failed_keywords):
         return 'Failed', 'failed'
 
-    # Check submitted status (case-insensitive)
-    if any(keyword in value_lower for keyword in submitted_keywords):
-        return 'Submitted', 'submitted'
-
-    # Default to submitted if any value exists but doesn't match patterns
-    return 'Submitted', 'submitted'
+    # Default to pending if any value exists but doesn't match patterns
+    return 'Pending', 'pending'
 
 
 def get_required_assessments(course, duration_weeks):
@@ -313,7 +270,6 @@ def calculate_test_status(student_data):
 
     passed_tests = []
     failed_tests = []
-    submitted_tests = []
     pending_tests = []
     test_details = {}
 
@@ -331,19 +287,16 @@ def calculate_test_status(student_data):
             passed_tests.append(test)
         elif status_type == 'failed':
             failed_tests.append(test)
-        elif status_type == 'submitted':
-            submitted_tests.append(test)
         else:
             pending_tests.append(test)
 
-    total_completed = len(passed_tests) + len(failed_tests) + len(submitted_tests)
+    total_completed = len(passed_tests) + len(failed_tests)
     total_required = len(required_tests)
 
     return {
         'required_tests': required_tests,
         'passed_tests': passed_tests,
         'failed_tests': failed_tests,
-        'submitted_tests': submitted_tests,
         'pending_tests': pending_tests,
         'test_details': test_details,
         'completion_rate': total_completed / total_required * 100 if total_required > 0 else 0,
@@ -356,13 +309,13 @@ def load_and_display_logo():
     try:
         # Try to load the logo image
         logo = Image.open("SMEI Header.png")
-
+        
         # Resize logo to appropriate size
         logo = logo.resize((400, 150))
-
+        
         # Display logo with use_container_width instead of use_column_width
         st.image(logo, use_container_width=False)
-
+        
         # Display contact information below the logo
         st.markdown("""
         <div class="contact-info">
@@ -371,7 +324,7 @@ def load_and_display_logo():
             Tel: +61 02 9744 1356 | Email: info@smel.nsw.edu.au
         </div>
         """, unsafe_allow_html=True)
-
+        
         return True
     except FileNotFoundError:
         # Fallback to text header if logo not found
@@ -417,8 +370,7 @@ if not df.empty:
 
     for idx, student in df.iterrows():
         status = calculate_test_status(student)
-        total_completed_tests += len(status['passed_tests']) + len(status['failed_tests']) + len(
-            status['submitted_tests'])
+        total_completed_tests += len(status['passed_tests']) + len(status['failed_tests'])
         total_passed_tests += len(status['passed_tests'])
         total_required_tests += len(status['required_tests'])
 
@@ -488,7 +440,7 @@ if search_term:
         # Display test status summary
         st.subheader("📋 Assessment Status Summary")
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             st.metric("Required Tests", len(test_status['required_tests']))
@@ -496,8 +448,6 @@ if search_term:
             st.metric("Passed", len(test_status['passed_tests']))
         with col3:
             st.metric("Failed", len(test_status['failed_tests']))
-        with col4:
-            st.metric("Submitted", len(test_status['submitted_tests']))
 
         # Display simplified test status table
         st.subheader("📝 Assessment Status")
@@ -506,7 +456,7 @@ if search_term:
         test_data = []
         for test in test_status['required_tests']:
             detail = test_status['test_details'][test]
-
+            
             # Determine status display and row class
             if detail['type'] == 'passed':
                 status_display = "✅ Passed"
@@ -514,13 +464,10 @@ if search_term:
             elif detail['type'] == 'failed':
                 status_display = "❌ Failed"
                 row_class = "status-failed-row"
-            elif detail['type'] == 'submitted':
-                status_display = "📤 Submitted"
-                row_class = "status-submitted-row"
             else:
                 status_display = "⏳ Pending"
                 row_class = "status-pending-row"
-
+            
             test_data.append({
                 'Assessment': test,
                 'Status': status_display,
@@ -530,7 +477,7 @@ if search_term:
         if test_data:
             # Create a DataFrame for the table
             test_df = pd.DataFrame(test_data)
-
+            
             # Display as a styled table
             st.markdown("""
             <table class="test-table">
@@ -543,18 +490,16 @@ if search_term:
                 </thead>
                 <tbody>
             """, unsafe_allow_html=True)
-
+            
             for idx, row in test_df.iterrows():
                 # Determine row class based on status
                 if "✅" in row['Status']:
                     row_class = "status-passed-row"
                 elif "❌" in row['Status']:
                     row_class = "status-failed-row"
-                elif "📤" in row['Status']:
-                    row_class = "status-submitted-row"
                 else:
                     row_class = "status-pending-row"
-
+                    
                 st.markdown(f"""
                 <tr class="{row_class}">
                     <td>{row['Assessment']}</td>
@@ -562,7 +507,7 @@ if search_term:
                     <td>{row['Recorded Value']}</td>
                 </tr>
                 """, unsafe_allow_html=True)
-
+            
             st.markdown("</tbody></table>", unsafe_allow_html=True)
         else:
             st.info("No assessment data available")
@@ -572,9 +517,8 @@ if search_term:
 
         st.info("""
         **Assessment Status Guide:**
-        - **Passed**: Assessment completed successfully (keywords: Passed, Pass, Completed, Complete, OR score ≥ 50 or 50%)
-        - **Failed**: Assessment completed but not passed (keywords: Failed, Fail, OR score < 50 or 50%)  
-        - **Submitted**: Assessment submitted but not yet marked (keywords: Submitted, Submit)
+        - **Passed**: Assessment completed successfully (keywords: Passed, Pass, Completed, Complete, OR score ≥ 50)
+        - **Failed**: Assessment completed but not passed (keywords: Failed, Fail, OR score < 50)  
         - **Pending**: Assessment not yet attempted (leave blank)
         """)
 
@@ -590,9 +534,8 @@ if search_term:
         st.write("**Update Instructions:**")
         st.write("1. Download the CSV file above")
         st.write("2. Open in Excel and update assessment status using these keywords:")
-        st.write("   - ✅ **Passed**: 'Passed', 'Pass', 'Completed', 'Complete', OR score ≥ 50 or 50%")
-        st.write("   - ❌ **Failed**: 'Failed', 'Fail', OR score < 50 or 50%")
-        st.write("   - 📤 **Submitted**: 'Submitted', 'Submit'")
+        st.write("   - ✅ **Passed**: 'Passed', 'Pass', 'Completed', 'Complete', OR score ≥ 50")
+        st.write("   - ❌ **Failed**: 'Failed', 'Fail', OR score < 50")
         st.write("   - ⏳ **Pending**: Leave blank")
         st.write("3. Save as Excel format (.xlsx)")
         st.write("4. Upload to GitHub repository to replace the current file")
@@ -632,46 +575,44 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     3. Download data to update assessment completion status
 
     **Assessment Status Definitions:**
-    - **✅ Passed**: Assessment completed successfully (keywords OR score ≥ 50/50%)
-    - **❌ Failed**: Assessment completed but not passed (keywords OR score < 50/50%)
-    - **📤 Submitted**: Assessment submitted but not yet marked
+    - **✅ Passed**: Assessment completed successfully (keywords OR score ≥ 50)
+    - **❌ Failed**: Assessment completed but not passed (keywords OR score < 50)
     - **⏳ Pending**: Assessment not yet attempted
 
     **Accepted Keywords for Assessment Status:**
 
     | Status | Accepted Keywords |
     |--------|------------------|
-    | **✅ Passed** | Passed, Pass, Completed, Complete, OR score ≥ 50 or 50% |
-    | **❌ Failed** | Failed, Fail, OR score < 50 or 50% |
-    | **📤 Submitted** | Submitted, Submit |
+    | **✅ Passed** | Passed, Pass, Completed, Complete, OR score ≥ 50 |
+    | **❌ Failed** | Failed, Fail, OR score < 50 |
     | **⏳ Pending** | Leave blank |
 
     **Score Rules:**
-    - Scores ≥ 50 or 50% are considered Passed
-    - Scores < 50 or 50% are considered Failed
-    - Both numeric scores (e.g., 75, 45) and percentages (e.g., 80%, 40%) are accepted
+    - Scores ≥ 50 are considered Passed
+    - Scores < 50 are considered Failed
+    - Only numeric scores are accepted (no percentages)
 
     **Assessment Rules:**
 
     **EAP Course:**
-    - 1-8 weeks: 1 assessment (Intermediate Mid)
-    - 9-14 weeks: 2 assessments (Intermediate Mid + End)
-    - 15-20 weeks: 3 assessments (+ Upper Intermediate Mid)
-    - 21-26 weeks: 4 assessments (+ Upper Intermediate End)
-    - 27-32 weeks: 5 assessments (+ Advanced Mid)
-    - 33-36 weeks: 6 assessments (+ Advanced End)
+    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
+    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
+    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
+    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
+    - 27-32 weeks: 5 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
+    - 33-36 weeks: 6 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
 
     **General English Course:**
-    - 1-8 weeks: 1 assessment (Intermediate Mid)
-    - 9-14 weeks: 2 assessments (Intermediate Mid + End)
-    - 15-20 weeks: 3 assessments (+ Upper Intermediate Mid)
-    - 21-26 weeks: 4 assessments (+ Upper Intermediate End)
-    - 27-32 weeks: 5 assessments (Elementary Mid, Elementary End, Pre Intermediate Mid, Pre Intermediate End, Intermediate Mid)
-    - 33-38 weeks: 6 assessments (+ Intermediate End)
-    - 39-44 weeks: 7 assessments (+ Upper Intermediate Mid)
-    - 45-50 weeks: 8 assessments (+ Upper Intermediate End)
-    - 51-56 weeks: 9 assessments (+ Advanced Mid)
-    - 57-60 weeks: 10 assessments (+ Advanced End)
+    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
+    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
+    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
+    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
+    - 27-32 weeks: 5 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test)
+    - 33-38 weeks: 6 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test)
+    - 39-44 weeks: 7 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
+    - 45-50 weeks: 8 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
+    - 51-56 weeks: 9 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
+    - 57-60 weeks: 10 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
 
     **Updating Assessment Status:**
     Use the accepted keywords in the Excel file as shown in the table above.
