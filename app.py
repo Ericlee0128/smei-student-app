@@ -136,13 +136,6 @@ st.markdown("""
         cursor: pointer;
         border-radius: 5px;
     }
-    .download-section {
-        background-color: #e8f5e8;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        border-left: 4px solid #4CAF50;
-    }
     .attendance-good {
         color: #2ecc71;
         font-weight: bold;
@@ -477,11 +470,6 @@ if not df.empty:
     total_students = len(df)
     eap_students = len(df[df['Course'] == 'EAP'])
     ge_students = len(df[df['Course'] == 'General English'])
-    
-    # Calculate attendance statistics
-    good_attendance = len(df[df['Attendance'] >= 80])
-    at_risk_attendance = len(df[df['Attendance'] < 80])
-    no_attendance_data = len(df[df['Attendance'].isna()])
 
     # Calculate completion statistics
     total_completed_tests = 0
@@ -497,32 +485,6 @@ if not df.empty:
     st.sidebar.metric("Total Students", total_students)
     st.sidebar.metric("EAP Students", eap_students)
     st.sidebar.metric("GE Students", ge_students)
-    st.sidebar.metric("Good Attendance (≥80%)", good_attendance)
-    st.sidebar.metric("At Risk Attendance (<80%)", at_risk_attendance)
-
-# Data Download Section - Simplified to only CSV
-st.markdown('<div class="download-section">', unsafe_allow_html=True)
-st.subheader("📥 Download Data for Updates")
-
-if not df.empty:
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Current Data (CSV)",
-        data=csv,
-        file_name="SMEI_Student_Progression.csv",
-        mime="text/csv",
-        help="Download the current student data in CSV format for updates"
-    )
-
-st.info("""
-**Data Update Instructions:**
-1. Download the data file above (CSV format)
-2. Open the file in Excel and update assessment status using the accepted keywords
-3. Save your changes as Excel format (.xlsx)
-4. Replace the original 'SMEI Student Progression.xlsx' file in the app folder
-5. The app will automatically refresh with the updated data
-""")
-st.markdown('</div>', unsafe_allow_html=True)
 
 # Search and Filter Section
 st.markdown('<div class="filter-section">', unsafe_allow_html=True)
@@ -782,26 +744,11 @@ else:  # Assessment Test search
             with col4:
                 st.metric("Pending", pending_students)
             
-            # Attendance stats
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Good Attendance (≥80%)", good_attendance_count)
-            with col2:
-                st.metric("At Risk Attendance (<80%)", at_risk_attendance_count)
-            
             # Format dates and phone numbers
             display_results = assessment_results.copy()
             display_results['Start Date'] = display_results['Start Date'].dt.strftime('%Y-%m-%d')
             display_results['Finish Date'] = display_results['Finish Date'].dt.strftime('%Y-%m-%d')
             display_results['Phone'] = display_results['Phone'].apply(format_phone)
-            
-            # Add download button for filtered results
-            st.download_button(
-                label=f"📥 Download {assessment_search} Results (CSV)",
-                data=display_results.to_csv(index=False).encode('utf-8'),
-                file_name=f"SMEI_{assessment_search.replace(' ', '_')}_Results.csv",
-                mime="text/csv"
-            )
             
             # Display detailed table with all requested columns including attendance
             display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Phone', 'Status', 'Recorded Value']
@@ -848,14 +795,6 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
     
     display_df['Attendance'] = display_df['Attendance'].apply(format_attendance)
     
-    # Add download button for all students
-    st.download_button(
-        label="📥 Download All Students Data (CSV)",
-        data=filtered_df.to_csv(index=False).encode('utf-8'),
-        file_name="SMEI_All_Students.csv",
-        mime="text/csv"
-    )
-    
     display_df.index = display_df.index + 1
     st.dataframe(display_df, use_container_width=True)
 
@@ -876,19 +815,6 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
 # Enhanced Instructions Section with Data Management Focus
 with st.expander("ℹ️ Instructions & Assessment Rules"):
     st.markdown("""
-    ## Data Management Instructions
-    
-    **📥 Downloading Data for Updates:**
-    1. Use the download button at the top of the page to get the current dataset in CSV format
-    2. Open the CSV file in Excel or any spreadsheet software
-    3. Update assessment status using these accepted keywords:
-       - **✅ Passed**: 'Passed', 'Pass', 'Completed', 'Complete', OR score ≥ 50
-       - **❌ Failed**: 'Failed', 'Fail', OR score < 50  
-       - **⏳ Pending**: Leave blank or empty
-    4. Save your changes as Excel format (.xlsx)
-    5. Replace the original 'SMEI Student Progression.xlsx' file in the app folder
-    6. The app will automatically refresh and display the updated data
-    
     ## Application Usage Guide
     
     **Student Search Options:**
