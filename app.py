@@ -174,7 +174,7 @@ ASSESSMENT_RULES = {
 def load_student_data():
     try:
         # Load from Excel file
-        df = pd.read_excel("SMEI Student Progression.xlsx", sheet_name="SMEI_Student_Progression (1)")
+        df = pd.read_excel("SMEI Student Progression.xlsx", sheet_name="SMEI Student Progression")
 
         # Ensure date columns are datetime
         df['Start Date'] = pd.to_datetime(df['Start Date'])
@@ -628,4 +628,5 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
