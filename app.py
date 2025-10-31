@@ -500,45 +500,25 @@ if not df.empty:
     st.sidebar.metric("Good Attendance (≥80%)", good_attendance)
     st.sidebar.metric("At Risk Attendance (<80%)", at_risk_attendance)
 
-# Data Download Section
+# Data Download Section - Simplified to only CSV
 st.markdown('<div class="download-section">', unsafe_allow_html=True)
 st.subheader("📥 Download Data for Updates")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    # Download current data as CSV
-    if not df.empty:
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Download Current Data (CSV)",
-            data=csv,
-            file_name="SMEI_Student_Progression.csv",
-            mime="text/csv",
-            help="Download the current student data in CSV format for updates"
-        )
-
-with col2:
-    # Download current data as Excel
-    if not df.empty:
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='SMEI')
-        excel_data = excel_buffer.getvalue()
-        
-        st.download_button(
-            label="📥 Download Current Data (Excel)",
-            data=excel_data,
-            file_name="SMEI_Student_Progression.xlsx",
-            mime="application/vnd.ms-excel",
-            help="Download the current student data in Excel format for updates"
-        )
+if not df.empty:
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Current Data (CSV)",
+        data=csv,
+        file_name="SMEI_Student_Progression.csv",
+        mime="text/csv",
+        help="Download the current student data in CSV format for updates"
+    )
 
 st.info("""
 **Data Update Instructions:**
-1. Download the data file above (CSV or Excel format)
-2. Open the file and update assessment status using the accepted keywords
-3. Save your changes
+1. Download the data file above (CSV format)
+2. Open the file in Excel and update assessment status using the accepted keywords
+3. Save your changes as Excel format (.xlsx)
 4. Replace the original 'SMEI Student Progression.xlsx' file in the app folder
 5. The app will automatically refresh with the updated data
 """)
@@ -899,22 +879,15 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     ## Data Management Instructions
     
     **📥 Downloading Data for Updates:**
-    1. Use the download buttons at the top of the page to get the current dataset
-    2. Choose between CSV or Excel format based on your preference
-    3. The downloaded file contains all student records and assessment statuses
-    
-    **✏️ Updating Assessment Status:**
-    1. Open the downloaded file in Excel or any spreadsheet software
-    2. Update assessment status using these accepted keywords:
+    1. Use the download button at the top of the page to get the current dataset in CSV format
+    2. Open the CSV file in Excel or any spreadsheet software
+    3. Update assessment status using these accepted keywords:
        - **✅ Passed**: 'Passed', 'Pass', 'Completed', 'Complete', OR score ≥ 50
        - **❌ Failed**: 'Failed', 'Fail', OR score < 50  
        - **⏳ Pending**: Leave blank or empty
-    3. Save your changes to the file
-    
-    **📤 Uploading Updated Data:**
-    1. Replace the existing 'SMEI Student Progression.xlsx' file in the app folder with your updated file
-    2. Ensure the file name remains exactly the same
-    3. The app will automatically refresh and display the updated data
+    4. Save your changes as Excel format (.xlsx)
+    5. Replace the original 'SMEI Student Progression.xlsx' file in the app folder
+    6. The app will automatically refresh and display the updated data
     
     ## Application Usage Guide
     
