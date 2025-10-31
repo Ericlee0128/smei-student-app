@@ -446,9 +446,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.title("🎓 Student Assessment Status")
 
-# Simplified Navigation - Only the radio buttons, no sidebar header
-page = st.sidebar.radio("**Navigation**", ["Student Search", "Assessment Overview"])
-
 # Load data
 df = load_student_data()
 
@@ -475,11 +472,11 @@ if not df.empty:
     st.sidebar.metric("EAP Students", eap_students)
     st.sidebar.metric("GE Students", ge_students)
 
-# Initialize search_term variable
-search_term = ""
+# Create tabs for the main content
+tab1, tab2 = st.tabs(["🔍 Student Search", "📋 Assessment Overview"])
 
-# Page 1: Student Search
-if page == "Student Search":
+# Tab 1: Student Search
+with tab1:
     # Search and Filter Section
     st.markdown('<div class="filter-section">', unsafe_allow_html=True)
     st.subheader("🔍 Search & Filter Options")
@@ -788,8 +785,8 @@ if page == "Student Search":
         st.write("4. Upload to GitHub repository to replace the current file")
         st.write("5. The app will automatically update with new data")
 
-# Page 2: Assessment Overview
-else:
+# Tab 2: Assessment Overview
+with tab2:
     st.header("📋 Assessment Overview")
     st.info("This view shows all assessments and the students who need to complete them.")
     
