@@ -595,24 +595,24 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     **Assessment Rules:**
 
     **EAP Course:**
-    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
-    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
-    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
-    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
-    - 27-32 weeks: 5 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
-    - 33-36 weeks: 6 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
+    - 1-8 weeks: 1 assessment (Intermediate Mid Course)
+    - 9-14 weeks: 2 assessments (Intermediate Mid Course, Intermediate End Course)
+    - 15-20 weeks: 3 assessments (Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course)
+    - 21-26 weeks: 4 assessments (Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course, Upper Intermediate End Course)
+    - 27-32 weeks: 5 assessments (Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course, Upper Intermediate End Course, Advanced Mid Course)
+    - 33-36 weeks: 6 assessments (Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course, Upper Intermediate End Course, Advanced Mid Course, Advanced End Course)
 
     **General English Course:**
-    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
-    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
-    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
-    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
-    - 27-32 weeks: 5 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test)
-    - 33-38 weeks: 6 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test)
-    - 39-44 weeks: 7 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
-    - 45-50 weeks: 8 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
-    - 51-56 weeks: 9 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
-    - 57-60 weeks: 10 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
+    - 1-8 weeks: 1 assessment (Intermediate Mid Course)
+    - 9-14 weeks: 2 assessments (Intermediate Mid Course, Intermediate End Course)
+    - 15-20 weeks: 3 assessments (Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course)
+    - 21-26 weeks: 4 assessments (Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course, Upper Intermediate End Course)
+    - 27-32 weeks: 5 assessments (Elementary Mid Course, Elementary End Course, Pre Intermediate Mid Course, Pre Intermediate End Course, Intermediate Mid Course)
+    - 33-38 weeks: 6 assessments (Elementary Mid Course, Elementary End Course, Pre Intermediate Mid Course, Pre Intermediate End Course, Intermediate Mid Course, Intermediate End Course)
+    - 39-44 weeks: 7 assessments (Elementary Mid Course, Elementary End Course, Pre Intermediate Mid Course, Pre Intermediate End Course, Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course)
+    - 45-50 weeks: 8 assessments (Elementary Mid Course, Elementary End Course, Pre Intermediate Mid Course, Pre Intermediate End Course, Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course, Upper Intermediate End Course)
+    - 51-56 weeks: 9 assessments (Elementary Mid Course, Elementary End Course, Pre Intermediate Mid Course, Pre Intermediate End Course, Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course, Upper Intermediate End Course, Advanced Mid Course)
+    - 57-60 weeks: 10 assessments (Elementary Mid Course, Elementary End Course, Pre Intermediate Mid Course, Pre Intermediate End Course, Intermediate Mid Course, Intermediate End Course, Upper Intermediate Mid Course, Upper Intermediate End Course, Advanced Mid Course, Advanced End Course)
 
     **Updating Assessment Status:**
     Use the accepted keywords in the Excel file as shown in the table above.
@@ -628,3 +628,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
