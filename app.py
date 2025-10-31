@@ -352,20 +352,13 @@ def calculate_test_status(student_data):
     }
 
 
-def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All", attendance_filter="All"):
+def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All"):
     """Get all students who should take a specific assessment"""
     students_with_assessment = []
     
     for idx, student in df.iterrows():
         # Apply course filter
         if course_filter != "All" and student['Course'] != course_filter:
-            continue
-            
-        # Apply attendance filter
-        attendance = student.get('Attendance', 0)
-        if attendance_filter == "Good (≥80%)" and attendance < 80:
-            continue
-        elif attendance_filter == "At Risk (<80%)" and attendance >= 80:
             continue
             
         required_tests = get_required_assessments(
@@ -386,7 +379,7 @@ def get_students_by_assessment(df, assessment_name, course_filter="All", status_
                     'Start Date': student['Start Date'],
                     'Finish Date': student['Finish Date'],
                     'Duration (weeks)': student['Duration (weeks)'],
-                    'Attendance': attendance,
+                    'Attendance': student.get('Attendance', 0),
                     'Phone': student['Phone'],
                     'Status': status,
                     'Recorded Value': test_value if pd.notna(test_value) else 'Not Recorded'
@@ -486,40 +479,63 @@ if not df.empty:
     st.sidebar.metric("EAP Students", eap_students)
     st.sidebar.metric("GE Students", ge_students)
 
-# Search and Filter Section
+# Search and Filter Section - IMPROVED VERSION
 st.markdown('<div class="filter-section">', unsafe_allow_html=True)
 st.subheader("🔍 Search & Filter Options")
 
-col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+# Main search type selection
+col1, col2 = st.columns([1, 2])
 
 with col1:
     search_type = st.radio("Search by:", ["Student Name/ID", "Assessment Test"])
 
 with col2:
+    # Course filter (common for both search types)
     course_filter = st.selectbox(
         "Filter by Course:",
         ["All Courses", "General English", "EAP"]
     )
 
-with col3:
-    # Attendance filter
-    attendance_filter = st.selectbox(
-        "Filter by Attendance:",
-        ["All", "Good (≥80%)", "At Risk (<80%)"]
-    )
+# Conditional filters based on search type
+if search_type == "Student Name/ID":
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        # Attendance filter only for Student search
+        attendance_filter = st.selectbox(
+            "Filter by Attendance:",
+            ["All", "Good (≥80%)", "At Risk (<80%)"]
+        )
+    
+    with col4:
+        # Date filter for upcoming completions
+        show_upcoming = st.checkbox("Show students finishing soon (within 30 days)")
 
-with col4:
-    # Date filter for upcoming completions
-    show_upcoming = st.checkbox("Show students finishing soon (within 30 days)")
+else:  # Assessment Test search
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        # Status filter only for Assessment search
+        status_filter = st.radio(
+            "Show students with status:",
+            ["All", "Pending + Failed", "Pending", "Failed", "Passed"],
+            horizontal=True
+        )
 
-# Apply course filter
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Apply course filter to base dataset
 if not df.empty:
     if course_filter == "General English":
-        filtered_df = df[df['Course'] == 'General English']
+        base_filtered_df = df[df['Course'] == 'General English']
     elif course_filter == "EAP":
-        filtered_df = df[df['Course'] == 'EAP']
+        base_filtered_df = df[df['Course'] == 'EAP']
     else:
-        filtered_df = df.copy()
+        base_filtered_df = df.copy()
+
+# For Student search: apply attendance and date filters
+if search_type == "Student Name/ID" and not df.empty:
+    filtered_df = base_filtered_df.copy()
     
     # Apply attendance filter
     if attendance_filter == "Good (≥80%)":
@@ -536,27 +552,23 @@ if not df.empty:
             (filtered_df['Finish Date'] <= thirty_days_later)
         ]
 
-st.markdown('</div>', unsafe_allow_html=True)
+# For Assessment search: we'll handle filtering in the assessment function
+else:
+    filtered_df = base_filtered_df.copy()
 
 # Display results based on search type
 if search_type == "Student Name/ID":
-    col1, col2 = st.columns([1, 3])
+    # Simplified search interface - single search box for both name and ID
+    search_term = st.text_input("Enter student name/ID:")
     
-    with col1:
-        search_by = st.radio("Search using:", ["Student Name", "Student ID"])
-    
-    with col2:
-        if search_by == "Student Name":
-            search_term = st.text_input("Enter student name:")
-        else:
-            search_term = st.text_input("Enter student ID:")
-
     if search_term:
-        if search_by == "Student Name":
-            results = filtered_df[filtered_df['Name'].str.contains(search_term, case=False, na=False)]
-        else:
-            results = filtered_df[filtered_df['StudentID'].str.contains(search_term, case=False, na=False)]
-
+        # Search in both Name and StudentID columns
+        name_results = filtered_df[filtered_df['Name'].str.contains(search_term, case=False, na=False)]
+        id_results = filtered_df[filtered_df['StudentID'].astype(str).str.contains(search_term, case=False, na=False)]
+        
+        # Combine results and remove duplicates
+        results = pd.concat([name_results, id_results]).drop_duplicates().reset_index(drop=True)
+        
         if not results.empty:
             # Student selection
             if len(results) > 1:
@@ -694,13 +706,6 @@ else:  # Assessment Test search
     )
     
     if assessment_search != "Select an assessment":
-        # Add status filter for Pending + Failed
-        status_filter = st.radio(
-            "Show students with status:",
-            ["All", "Pending + Failed", "Pending", "Failed", "Passed"],
-            horizontal=True
-        )
-        
         # Map the status filter to the actual status values
         actual_status_filter = "All"
         if status_filter == "Pending + Failed":
@@ -709,12 +714,11 @@ else:  # Assessment Test search
             actual_status_filter = status_filter
         
         assessment_results = get_students_by_assessment(
-            filtered_df, 
+            base_filtered_df,  # Use base_filtered_df (only course filtered)
             assessment_search, 
             "General English" if course_filter == "General English" else 
             "EAP" if course_filter == "EAP" else "All",
-            actual_status_filter,
-            attendance_filter
+            actual_status_filter
         )
         
         # If "Pending + Failed" is selected, filter the results
@@ -815,67 +819,80 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
 # Enhanced Instructions Section with Data Management Focus
 with st.expander("ℹ️ Instructions & Assessment Rules"):
     st.markdown("""
-    ## Application Usage Guide
+    ## 应用程序使用指南
     
-    **Student Search Options:**
-    1. **Search by Student Name/ID**: Find individual students and view their detailed progression
-    2. **Search by Assessment Test**: Find all students who need to complete a specific assessment
+    **学生搜索选项:**
+    1. **按学生姓名/ID搜索**: 查找个别学生并查看他们的详细进度
+    2. **按评估测试搜索**: 查找所有需要完成特定评估的学生
     
-    **Filter Options:**
-    - **Course Filter**: Filter by General English or EAP
-    - **Attendance Filter**: 
-        - **Good (≥80%)**: Students meeting college attendance requirements
-        - **At Risk (<80%)**: Students below the required attendance threshold
-    - **Completion Date**: Show students finishing soon (within 30 days)
+    **筛选选项:**
+    - **课程筛选**: 按通用英语或EAP筛选
+    - **出勤率筛选** (仅学生搜索): 
+        - **良好 (≥80%)**: 符合学院出勤要求的学生
+        - **有风险 (<80%)**: 低于要求出勤率阈值的学生
+    - **状态筛选** (仅评估搜索): 
+        - **所有状态**: 显示所有学生
+        - **待完成+未通过**: 显示需要关注的学生
+        - **待完成**: 显示尚未完成测试的学生
+        - **未通过**: 显示测试未通过的学生
+        - **已通过**: 显示测试已通过的学生
+    - **完成日期**: 显示即将完成的学生(30天内)
     
-    ## Attendance Tracking
+    ## 搜索功能改进
     
-    **College Requirement:**
-    - Minimum attendance requirement: **80%**
-    - Students with attendance below 80% are marked as **At Risk**
-    - Attendance status is color-coded for easy identification:
-        - 🟢 **Good**: 80% and above
-        - 🔴 **At Risk**: Below 80%
+    **统一搜索框:**
+    - 输入学生姓名或ID都可以搜索
+    - 系统会自动在姓名和ID字段中查找匹配项
+    - 支持部分匹配，不区分大小写
     
-    ## Assessment Status Definitions
+    ## 出勤率跟踪
     
-    - **✅ Passed**: Assessment completed successfully (keywords OR score ≥ 50)
-    - **❌ Failed**: Assessment completed but not passed (keywords OR score < 50)
-    - **⏳ Pending**: Assessment not yet attempted
+    **学院要求:**
+    - 最低出勤率要求: **80%**
+    - 出勤率低于80%的学生标记为 **有风险**
+    - 出勤状态用颜色编码以便识别:
+        - 🟢 **良好**: 80%及以上
+        - 🔴 **有风险**: 低于80%
     
-    ## Remaining Tests Calculation
+    ## 评估状态定义
     
-    - Remaining = Required Tests - Passed Tests
-    - Failed tests are still counted as remaining because they need to be retaken
+    - **✅ 已通过**: 评估成功完成(关键词或分数 ≥ 50)
+    - **❌ 未通过**: 评估完成但未通过(关键词或分数 < 50)
+    - **⏳ 待完成**: 评估尚未尝试
     
-    ## Assessment Rules
+    ## 剩余测试计算
     
-    **EAP Course:**
-    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
-    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
-    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
-    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
-    - 27-32 weeks: 5 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
-    - 33-36 weeks: 6 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
+    - 剩余 = 所需测试 - 已通过测试
+    - 未通过的测试仍计入剩余，因为需要重考
+    
+    ## 评估规则
+    
+    **EAP课程:**
+    - 1-8周: 1个评估(中级期中课程测试)
+    - 9-14周: 2个评估(中级期中课程测试 + 中级期末课程测试)
+    - 15-20周: 3个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试)
+    - 21-26周: 4个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试)
+    - 27-32周: 5个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试)
+    - 33-36周: 6个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试 + 高级期末课程测试)
 
-    **General English Course:**
-    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
-    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
-    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
-    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
-    - 27-32 weeks: 5 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test)
-    - 33-38 weeks: 6 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test)
-    - 39-44 weeks: 7 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
-    - 45-50 weeks: 8 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
-    - 51-56 weeks: 9 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
-    - 57-60 weeks: 10 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
+    **通用英语课程:**
+    - 1-8周: 1个评估(中级期中课程测试)
+    - 9-14周: 2个评估(中级期中课程测试 + 中级期末课程测试)
+    - 15-20周: 3个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试)
+    - 21-26周: 4个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试)
+    - 27-32周: 5个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试)
+    - 33-38周: 6个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试)
+    - 39-44周: 7个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试)
+    - 45-50周: 8个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试)
+    - 51-56周: 9个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试)
+    - 57-60周: 10个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试 + 高级期末课程测试)
     
-    ## Technical Notes
+    ## 技术说明
     
-    - The app automatically refreshes data when the Excel file is updated
-    - All date formats are standardized as YYYY-MM-DD
-    - Phone numbers are automatically formatted to ensure they start with 0
-    - The system caches data for performance but will reload when changes are detected
+    - 当Excel文件更新时，应用程序会自动刷新数据
+    - 所有日期格式都标准化为YYYY-MM-DD
+    - 电话号码会自动格式化以确保以0开头
+    - 系统会缓存数据以提高性能，但检测到更改时会重新加载
     """)
 
 # Footer
