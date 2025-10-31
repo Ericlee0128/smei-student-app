@@ -349,7 +349,10 @@ def get_students_by_assessment(df, assessment_name, course_filter="All"):
                 'StudentID': student['StudentID'],
                 'Name': student['Name'],
                 'Course': student['Course'],
+                'Start Date': student['Start Date'],
+                'Finish Date': student['Finish Date'],
                 'Duration (weeks)': student['Duration (weeks)'],
+                'Phone': student['Phone'],
                 'Status': status,
                 'Recorded Value': test_value if pd.notna(test_value) else 'Not Recorded'
             })
@@ -372,6 +375,13 @@ def get_all_assessments_overview(df, course_filter="All"):
         assessment_overview[assessment] = students_df
     
     return assessment_overview
+
+
+def format_phone(phone):
+    """Format phone number to ensure it starts with 0"""
+    if isinstance(phone, str) and phone.startswith('+61') and not phone.startswith('+61 0'):
+        return phone.replace('+61 ', '+61 0')
+    return phone
 
 
 def load_and_display_logo():
@@ -451,6 +461,9 @@ if not df.empty:
     st.sidebar.metric("Total Students", total_students)
     st.sidebar.metric("EAP Students", eap_students)
     st.sidebar.metric("GE Students", ge_students)
+
+# Initialize search_term variable
+search_term = ""
 
 # Page 1: Student Search
 if page == "Student Search":
@@ -544,10 +557,7 @@ if page == "Student Search":
                 with col3:
                     st.write(f"**Duration:** {student_data['Duration (weeks)']} weeks")
                     # Format phone number to ensure it starts with 0
-                    phone = student_data['Phone']
-                    if isinstance(phone, str) and phone.startswith('+61') and not phone.startswith('+61 0'):
-                        # Add 0 after +61 if it's missing
-                        phone = phone.replace('+61 ', '+61 0')
+                    phone = format_phone(student_data['Phone'])
                     st.write(f"**Phone:** {phone}")
 
                 st.markdown('</div>', unsafe_allow_html=True)
@@ -666,16 +676,22 @@ if page == "Student Search":
                 with col4:
                     st.metric("Pending", pending_students)
                 
-                # Display detailed table
-                display_cols = ['StudentID', 'Name', 'Course', 'Duration (weeks)', 'Status', 'Recorded Value']
-                assessment_display_df = assessment_results[display_cols].copy()
+                # Format dates and phone numbers
+                display_results = assessment_results.copy()
+                display_results['Start Date'] = display_results['Start Date'].dt.strftime('%Y-%m-%d')
+                display_results['Finish Date'] = display_results['Finish Date'].dt.strftime('%Y-%m-%d')
+                display_results['Phone'] = display_results['Phone'].apply(format_phone)
+                
+                # Display detailed table with all requested columns
+                display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Phone', 'Status', 'Recorded Value']
+                assessment_display_df = display_results[display_cols].copy()
                 assessment_display_df.index = assessment_display_df.index + 1
                 st.dataframe(assessment_display_df, use_container_width=True)
             else:
                 st.info(f"No students require {assessment_search} with current filters")
 
     # Display all students with enhanced information
-    if not df.empty and not search_term and search_type == "Student Name/ID":
+    if not df.empty and search_type == "Student Name/ID" and not search_term:
         st.subheader("👥 All Students")
         
         # Enhanced display with all requested columns
@@ -687,11 +703,6 @@ if page == "Student Search":
         display_df['Finish Date'] = display_df['Finish Date'].dt.strftime('%Y-%m-%d')
         
         # Format phone numbers
-        def format_phone(phone):
-            if isinstance(phone, str) and phone.startswith('+61') and not phone.startswith('+61 0'):
-                return phone.replace('+61 ', '+61 0')
-            return phone
-        
         display_df['Phone'] = display_df['Phone'].apply(format_phone)
         
         display_df.index = display_df.index + 1
@@ -709,7 +720,7 @@ if page == "Student Search":
             st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
 
     # Test management section (only show when a student is selected)
-    if 'student_data' in locals() and not results.empty if 'results' in locals() else False:
+    if 'student_data' in locals() and 'results' in locals() and not results.empty:
         st.subheader("🔄 Assessment Status Management")
 
         st.info("""
@@ -786,16 +797,25 @@ else:
                         st.metric("Pending", pending_students,
                                  delta=f"{(pending_students/total_students*100):.1f}%" if total_students > 0 else "0%")
                     
+                    # Format dates and phone numbers
+                    display_students_df = students_df.copy()
+                    display_students_df['Start Date'] = display_students_df['Start Date'].dt.strftime('%Y-%m-%d')
+                    display_students_df['Finish Date'] = display_students_df['Finish Date'].dt.strftime('%Y-%m-%d')
+                    display_students_df['Phone'] = display_students_df['Phone'].apply(format_phone)
+                    
                     # Display students by status
                     status_tabs = st.tabs(["All Students", "Pending", "Failed", "Passed"])
                     
+                    # Define columns to display
+                    display_columns = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Phone', 'Status', 'Recorded Value']
+                    
                     with status_tabs[0]:  # All
-                        display_df = students_df.copy()
+                        display_df = display_students_df[display_columns].copy()
                         display_df.index = display_df.index + 1
                         st.dataframe(display_df, use_container_width=True)
                     
                     with status_tabs[1]:  # Pending
-                        pending_df = students_df[students_df['Status'] == 'Pending']
+                        pending_df = display_students_df[display_students_df['Status'] == 'Pending'][display_columns].copy()
                         if not pending_df.empty:
                             pending_df.index = pending_df.index + 1
                             st.dataframe(pending_df, use_container_width=True)
@@ -803,7 +823,7 @@ else:
                             st.info("No students with pending status")
                     
                     with status_tabs[2]:  # Failed
-                        failed_df = students_df[students_df['Status'] == 'Failed']
+                        failed_df = display_students_df[display_students_df['Status'] == 'Failed'][display_columns].copy()
                         if not failed_df.empty:
                             failed_df.index = failed_df.index + 1
                             st.dataframe(failed_df, use_container_width=True)
@@ -811,7 +831,7 @@ else:
                             st.info("No students with failed status")
                     
                     with status_tabs[3]:  # Passed
-                        passed_df = students_df[students_df['Status'] == 'Passed']
+                        passed_df = display_students_df[display_students_df['Status'] == 'Passed'][display_columns].copy()
                         if not passed_df.empty:
                             passed_df.index = passed_df.index + 1
                             st.dataframe(passed_df, use_container_width=True)
