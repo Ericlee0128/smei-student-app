@@ -239,7 +239,7 @@ ASSESSMENT_ORDER = [
 def load_student_data():
     try:
         # Load from CSV file (updated from Excel)
-        df = pd.read_csv("SMEI Student Progression.csv")
+        df = pd.read_csv("SMEI Student Progression.xlsx")
 
         # Ensure date columns are datetime
         df['Start Date'] = pd.to_datetime(df['Start Date'], format='%d/%m/%Y', errors='coerce')
@@ -257,7 +257,7 @@ def load_student_data():
         return df
     except Exception as e:
         st.error(f"Error loading student data: {e}")
-        st.info("Please ensure 'SMEI Student Progression.csv' is in the same folder as the app")
+        st.info("Please ensure 'SMEI Student Progression.xlsx' is in the same folder as the app")
         return pd.DataFrame()
 
 def calculate_progression_rate(df):
@@ -1100,3 +1100,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
