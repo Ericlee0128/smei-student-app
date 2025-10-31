@@ -251,6 +251,9 @@ def load_student_data():
             'EAP': 'EAP'
         })
         
+        # Format phone numbers
+        df['Phone'] = df['Phone'].apply(format_phone)
+        
         # Calculate progression rate for each student
         df = calculate_progression_rate(df)
 
@@ -314,7 +317,6 @@ def extract_score(value_str):
     except (ValueError, TypeError):
         return None
 
-
 def get_test_status(test_value):
     """Determine the status of a test based on its value"""
     if pd.isna(test_value) or str(test_value).strip() == '':
@@ -349,7 +351,6 @@ def get_test_status(test_value):
     # Default to pending if any value exists but doesn't match patterns
     return 'Pending', 'pending'
 
-
 def get_required_assessments(course, duration_weeks):
     """Get required tests based on course and duration"""
     if course not in ASSESSMENT_RULES:
@@ -363,7 +364,6 @@ def get_required_assessments(course, duration_weeks):
 
     # If beyond max range, return all assessments
     return rules['assessments']
-
 
 def calculate_test_status(student_data):
     """Calculate student's test status"""
@@ -411,7 +411,6 @@ def calculate_test_status(student_data):
         'pass_rate': len(passed_tests) / total_required * 100 if total_required > 0 else 0
     }
 
-
 def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All", show_upcoming=False):
     """Get all students who should take a specific assessment"""
     students_with_assessment = []
@@ -458,13 +457,31 @@ def get_students_by_assessment(df, assessment_name, course_filter="All", status_
     
     return pd.DataFrame(students_with_assessment)
 
-
 def format_phone(phone):
-    """Format phone number to ensure it starts with 0"""
-    if isinstance(phone, str) and phone.startswith('+61') and not phone.startswith('+61 0'):
-        return phone.replace('+61 ', '+61 0')
-    return phone
-
+    """Format phone number to ensure it starts with 0 before 4"""
+    if pd.isna(phone):
+        return "No Phone"
+    
+    # Convert to string and remove all non-digit characters
+    phone_str = str(phone)
+    digits_only = re.sub(r'[^\d]', '', phone_str)
+    
+    # If the number starts with 4 but doesn't have 0 before it, add 0
+    if digits_only.startswith('4') and not digits_only.startswith('04'):
+        digits_only = '0' + digits_only
+    
+    # If the number starts with 61 (country code) and then 4, convert to 04
+    if digits_only.startswith('614') and len(digits_only) >= 10:
+        digits_only = '0' + digits_only[2:]
+    
+    # Ensure the formatted number starts with 04 and has correct length
+    if digits_only.startswith('04') and len(digits_only) == 10:
+        return digits_only
+    elif digits_only.startswith('04') and len(digits_only) > 10:
+        return digits_only[:10]  # Take first 10 digits if longer
+    else:
+        # Return original if formatting doesn't apply
+        return phone_str
 
 def get_attendance_status(attendance):
     """Get attendance status with color coding"""
@@ -477,7 +494,6 @@ def get_attendance_status(attendance):
     else:
         return "Poor", "attendance-poor"
 
-
 def get_progression_status(progression_rate):
     """Get progression rate status with color coding"""
     if pd.isna(progression_rate):
@@ -488,7 +504,6 @@ def get_progression_status(progression_rate):
         return "Good", "progression-warning"
     else:
         return "Poor", "progression-poor"
-
 
 def load_and_display_logo():
     """Load and display the SMEI logo"""
@@ -528,7 +543,6 @@ def load_and_display_logo():
         """, unsafe_allow_html=True)
         return False
 
-
 def create_excel_download(df):
     """Create Excel file for download with SMEI sheet name"""
     try:
@@ -567,7 +581,6 @@ def create_excel_download(df):
     except Exception as e:
         st.error(f"Error creating Excel file: {e}")
         return None
-
 
 # Main application
 
@@ -732,13 +745,13 @@ if search_type == "Student Name/ID":
                 st.write(f"**Course:** {student_data['Course']}")
 
             with col2:
-                st.write(f"**Start Date:** {student_data['Start Date'].strftime('%Y-%m-%d')}")
-                st.write(f"**End Date:** {student_data['Finish Date'].strftime('%Y-%m-%d')}")
+                st.write(f"**Start Date:** {student_data['Start Date'].strftime('%d/%m/%Y')}")
+                st.write(f"**End Date:** {student_data['Finish Date'].strftime('%d/%m/%Y')}")
 
             with col3:
                 st.write(f"**Duration:** {student_data['Duration (weeks)']} weeks")
                 # Format phone number to ensure it starts with 0
-                phone = format_phone(student_data['Phone'])
+                phone = student_data['Phone']
                 st.write(f"**Phone:** {phone}")
 
             with col4:
@@ -890,9 +903,8 @@ else:  # Assessment Test search
             
             # Format dates and phone numbers
             display_results = assessment_results.copy()
-            display_results['Start Date'] = display_results['Start Date'].dt.strftime('%Y-%m-%d')
-            display_results['Finish Date'] = display_results['Finish Date'].dt.strftime('%Y-%m-%d')
-            display_results['Phone'] = display_results['Phone'].apply(format_phone)
+            display_results['Start Date'] = display_results['Start Date'].dt.strftime('%d/%m/%Y')
+            display_results['Finish Date'] = display_results['Finish Date'].dt.strftime('%d/%m/%Y')
             
             # Display detailed table with all requested columns including attendance and progression
             display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Progression Rate', 'Phone', 'Status', 'Recorded Value']
@@ -937,11 +949,8 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
     display_df = filtered_df[display_cols].copy()
     
     # Format dates
-    display_df['Start Date'] = display_df['Start Date'].dt.strftime('%Y-%m-%d')
-    display_df['Finish Date'] = display_df['Finish Date'].dt.strftime('%Y-%m-%d')
-    
-    # Format phone numbers
-    display_df['Phone'] = display_df['Phone'].apply(format_phone)
+    display_df['Start Date'] = display_df['Start Date'].dt.strftime('%d/%m/%Y')
+    display_df['Finish Date'] = display_df['Finish Date'].dt.strftime('%d/%m/%Y')
     
     # Format attendance and progression with color coding
     def format_attendance(val):
@@ -1096,8 +1105,8 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     ## Technical Notes
     
     - The app automatically calculates progression rates for all students
-    - All date formats are standardized as YYYY-MM-DD
-    - Phone numbers are automatically formatted to ensure they start with 0
+    - All date formats are standardized as DD/MM/YYYY
+    - Phone numbers are automatically formatted to ensure they start with 04
     - The system caches data for performance but will reload when changes are detected
     - For data accuracy, ensure the Excel file follows the correct structure
     """)
