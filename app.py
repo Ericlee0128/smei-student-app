@@ -15,7 +15,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for better styling
+# Custom CSS for better styling - UPDATED with progression rate colors
 st.markdown("""
 <style>
     .main-header {
@@ -136,6 +136,7 @@ st.markdown("""
         cursor: pointer;
         border-radius: 5px;
     }
+    /* UPDATED: Attendance color coding */
     .attendance-good {
         color: #2ecc71;
         font-weight: bold;
@@ -145,6 +146,19 @@ st.markdown("""
         font-weight: bold;
     }
     .attendance-poor {
+        color: #e74c3c;
+        font-weight: bold;
+    }
+    /* NEW: Progression rate color coding */
+    .progression-good {
+        color: #2ecc71;
+        font-weight: bold;
+    }
+    .progression-warning {
+        color: #e67e22;
+        font-weight: bold;
+    }
+    .progression-poor {
         color: #e74c3c;
         font-weight: bold;
     }
@@ -224,25 +238,64 @@ ASSESSMENT_ORDER = [
 @st.cache_data
 def load_student_data():
     try:
-        # Load from Excel file
-        df = pd.read_excel("SMEI Student Progression.xlsx", sheet_name="SMEI")
+        # Load from CSV file (updated from Excel)
+        df = pd.read_csv("SMEI Student Progression.csv")
 
         # Ensure date columns are datetime
-        df['Start Date'] = pd.to_datetime(df['Start Date'])
-        df['Finish Date'] = pd.to_datetime(df['Finish Date'])
+        df['Start Date'] = pd.to_datetime(df['Start Date'], format='%d/%m/%Y', errors='coerce')
+        df['Finish Date'] = pd.to_datetime(df['Finish Date'], format='%d/%m/%Y', errors='coerce')
 
         # Standardize course names
         df['Course'] = df['Course'].replace({
             'General English': 'General English',
             'EAP': 'EAP'
         })
+        
+        # Calculate progression rate for each student
+        df = calculate_progression_rate(df)
 
         return df
     except Exception as e:
         st.error(f"Error loading student data: {e}")
-        st.info("Please ensure 'SMEI Student Progression.xlsx' is in the same folder as the app")
+        st.info("Please ensure 'SMEI Student Progression.csv' is in the same folder as the app")
         return pd.DataFrame()
 
+def calculate_progression_rate(df):
+    """Calculate progression rate for each student and add to DataFrame"""
+    progression_rates = []
+    
+    for idx, student in df.iterrows():
+        # Get required assessments based on course and duration
+        required_tests = get_required_assessments(
+            student['Course'],
+            student['Duration (weeks)']
+        )
+        
+        # Count passed assessments
+        passed_count = 0
+        total_attempted = 0
+        
+        for test in required_tests:
+            test_value = student.get(test, '')
+            status, status_type = get_test_status(test_value)
+            
+            if status_type in ['passed', 'failed']:  # Test has been attempted
+                total_attempted += 1
+                if status_type == 'passed':
+                    passed_count += 1
+        
+        # Calculate progression rate
+        if total_attempted > 0:
+            progression_rate = (passed_count / len(required_tests)) * 100
+        else:
+            progression_rate = 0
+            
+        progression_rates.append(progression_rate)
+    
+    # Add progression rate column to DataFrame
+    df['Progression Rate'] = progression_rates
+    
+    return df
 
 def extract_score(value_str):
     """Extract numeric score from a string"""
@@ -399,7 +452,8 @@ def get_students_by_assessment(df, assessment_name, course_filter="All", status_
                     'Attendance': student.get('Attendance', 0),
                     'Phone': student['Phone'],
                     'Status': status,
-                    'Recorded Value': test_value if pd.notna(test_value) else 'Not Recorded'
+                    'Recorded Value': test_value if pd.notna(test_value) else 'Not Recorded',
+                    'Progression Rate': student.get('Progression Rate', 0)
                 })
     
     return pd.DataFrame(students_with_assessment)
@@ -413,13 +467,27 @@ def format_phone(phone):
 
 
 def get_attendance_status(attendance):
-    """Get attendance status based on college requirement (≥80%)"""
+    """Get attendance status with color coding"""
     if pd.isna(attendance):
         return "No Data", "attendance-poor"
     elif attendance >= 80:
         return "Good", "attendance-good"
+    elif attendance >= 50:
+        return "Warning", "attendance-warning"
     else:
-        return "At Risk", "attendance-warning"
+        return "Poor", "attendance-poor"
+
+
+def get_progression_status(progression_rate):
+    """Get progression rate status with color coding"""
+    if pd.isna(progression_rate):
+        return "No Data", "progression-poor"
+    elif progression_rate >= 90:
+        return "Excellent", "progression-good"
+    elif progression_rate >= 50:
+        return "Good", "progression-warning"
+    else:
+        return "Poor", "progression-poor"
 
 
 def load_and_display_logo():
@@ -520,10 +588,16 @@ if not df.empty:
     total_students = len(df)
     eap_students = len(df[df['Course'] == 'EAP'])
     ge_students = len(df[df['Course'] == 'General English'])
+    
+    # Calculate average attendance and progression
+    avg_attendance = df['Attendance'].mean()
+    avg_progression = df['Progression Rate'].mean()
 
     st.sidebar.metric("Total Students", total_students)
     st.sidebar.metric("EAP Students", eap_students)
     st.sidebar.metric("GE Students", ge_students)
+    st.sidebar.metric("Avg Attendance", f"{avg_attendance:.1f}%")
+    st.sidebar.metric("Avg Progression", f"{avg_progression:.1f}%")
 
 # Search and Filter Section - IMPROVED VERSION
 st.markdown('<div class="filter-section">', unsafe_allow_html=True)
@@ -550,12 +624,15 @@ if search_type == "Student Name/ID":
         # Attendance filter only for Student search
         attendance_filter = st.selectbox(
             "Filter by Attendance:",
-            ["All", "Good (≥80%)", "At Risk (<80%)"]
+            ["All", "Good (≥80%)", "Warning (50-79%)", "Poor (0-49%)"]
         )
     
     with col4:
-        # Date filter for upcoming completions
-        show_upcoming = st.checkbox("Show students finishing soon (within 30 days)")
+        # Progression rate filter
+        progression_filter = st.selectbox(
+            "Filter by Progression:",
+            ["All", "Excellent (90-100%)", "Good (50-89%)", "Poor (0-49%)"]
+        )
 
 else:  # Assessment Test search
     col3, col4 = st.columns(2)
@@ -583,24 +660,25 @@ if not df.empty:
     else:
         base_filtered_df = df.copy()
 
-# For Student search: apply attendance and date filters
+# For Student search: apply attendance and progression filters
 if search_type == "Student Name/ID" and not df.empty:
     filtered_df = base_filtered_df.copy()
     
     # Apply attendance filter
     if attendance_filter == "Good (≥80%)":
         filtered_df = filtered_df[filtered_df['Attendance'] >= 80]
-    elif attendance_filter == "At Risk (<80%)":
-        filtered_df = filtered_df[filtered_df['Attendance'] < 80]
+    elif attendance_filter == "Warning (50-79%)":
+        filtered_df = filtered_df[(filtered_df['Attendance'] >= 50) & (filtered_df['Attendance'] < 80)]
+    elif attendance_filter == "Poor (0-49%)":
+        filtered_df = filtered_df[filtered_df['Attendance'] < 50]
     
-    # Apply date filter if selected
-    if show_upcoming:
-        today = pd.Timestamp.now()
-        thirty_days_later = today + pd.Timedelta(days=30)
-        filtered_df = filtered_df[
-            (filtered_df['Finish Date'] >= today) & 
-            (filtered_df['Finish Date'] <= thirty_days_later)
-        ]
+    # Apply progression filter
+    if progression_filter == "Excellent (90-100%)":
+        filtered_df = filtered_df[filtered_df['Progression Rate'] >= 90]
+    elif progression_filter == "Good (50-89%)":
+        filtered_df = filtered_df[(filtered_df['Progression Rate'] >= 50) & (filtered_df['Progression Rate'] < 90)]
+    elif progression_filter == "Poor (0-49%)":
+        filtered_df = filtered_df[filtered_df['Progression Rate'] < 50]
 
 # For Assessment search: we'll handle filtering in the assessment function
 else:
@@ -658,6 +736,10 @@ if search_type == "Student Name/ID":
                 attendance = student_data.get('Attendance', 0)
                 attendance_status, attendance_class = get_attendance_status(attendance)
                 st.write(f"**Attendance:** <span class='{attendance_class}'>{attendance}% ({attendance_status})</span>", unsafe_allow_html=True)
+                
+                progression_rate = student_data.get('Progression Rate', 0)
+                progression_status, progression_class = get_progression_status(progression_rate)
+                st.write(f"**Progression:** <span class='{progression_class}'>{progression_rate:.1f}% ({progression_status})</span>", unsafe_allow_html=True)
 
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -801,31 +883,44 @@ else:  # Assessment Test search
             display_results['Finish Date'] = display_results['Finish Date'].dt.strftime('%Y-%m-%d')
             display_results['Phone'] = display_results['Phone'].apply(format_phone)
             
-            # Display detailed table with all requested columns including attendance
-            display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Phone', 'Status', 'Recorded Value']
+            # Display detailed table with all requested columns including attendance and progression
+            display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Progression Rate', 'Phone', 'Status', 'Recorded Value']
             assessment_display_df = display_results[display_cols].copy()
             
-            # Format attendance with color coding
+            # Format attendance and progression with color coding
             def format_attendance(val):
                 if pd.isna(val):
                     return "No Data"
                 elif val >= 80:
                     return f"🟢 {val}%"
+                elif val >= 50:
+                    return f"🟡 {val}%"
                 else:
                     return f"🔴 {val}%"
             
+            def format_progression(val):
+                if pd.isna(val):
+                    return "No Data"
+                elif val >= 90:
+                    return f"🟢 {val:.1f}%"
+                elif val >= 50:
+                    return f"🟡 {val:.1f}%"
+                else:
+                    return f"🔴 {val:.1f}%"
+            
             assessment_display_df['Attendance'] = assessment_display_df['Attendance'].apply(format_attendance)
+            assessment_display_df['Progression Rate'] = assessment_display_df['Progression Rate'].apply(format_progression)
             assessment_display_df.index = assessment_display_df.index + 1
             st.dataframe(assessment_display_df, use_container_width=True)
         else:
             st.info(f"No students require {assessment_search} with current filters")
 
-# Display all students with enhanced information
+# Display all students with enhanced information including progression rate
 if not df.empty and search_type == "Student Name/ID" and not search_term:
     st.subheader("👥 All Students")
     
-    # Enhanced display with all requested columns including attendance
-    display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Phone']
+    # Enhanced display with all requested columns including attendance and progression
+    display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Progression Rate', 'Phone']
     display_df = filtered_df[display_cols].copy()
     
     # Format dates
@@ -835,23 +930,36 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
     # Format phone numbers
     display_df['Phone'] = display_df['Phone'].apply(format_phone)
     
-    # Format attendance with color coding
+    # Format attendance and progression with color coding
     def format_attendance(val):
         if pd.isna(val):
             return "No Data"
         elif val >= 80:
             return f"🟢 {val}%"
+        elif val >= 50:
+            return f"🟡 {val}%"
         else:
             return f"🔴 {val}%"
     
+    def format_progression(val):
+        if pd.isna(val):
+            return "No Data"
+        elif val >= 90:
+            return f"🟢 {val:.1f}%"
+        elif val >= 50:
+            return f"🟡 {val:.1f}%"
+        else:
+            return f"🔴 {val:.1f}%"
+    
     display_df['Attendance'] = display_df['Attendance'].apply(format_attendance)
+    display_df['Progression Rate'] = display_df['Progression Rate'].apply(format_progression)
     
     display_df.index = display_df.index + 1
     st.dataframe(display_df, use_container_width=True)
 
     # Summary statistics
     st.subheader("📈 Summary Statistics")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.metric("Total Students", len(filtered_df))
@@ -859,6 +967,9 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
         st.metric("EAP Students", len(filtered_df[filtered_df['Course'] == 'EAP']))
     with col3:
         st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
+    with col4:
+        avg_progression = filtered_df['Progression Rate'].mean()
+        st.metric("Avg Progression", f"{avg_progression:.1f}%")
 
 # Download Section - Added between main content and instructions
 if not df.empty:
@@ -882,7 +993,7 @@ if not df.empty:
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Enhanced Instructions Section with Data Management Focus
+# Enhanced Instructions Section with Progression Rate Information
 with st.expander("ℹ️ Instructions & Assessment Rules"):
     st.markdown("""
     ## Application Usage Guide
@@ -895,28 +1006,30 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     - **Course Filter**: Filter by General English or EAP
     - **Attendance Filter** (Student Search only): 
         - **Good (≥80%)**: Students meeting college attendance requirements
-        - **At Risk (<80%)**: Students below the required attendance threshold
+        - **Warning (50-79%)**: Students with moderate attendance
+        - **Poor (0-49%)**: Students with low attendance
+    - **Progression Filter** (Student Search only):
+        - **Excellent (90-100%)**: Students with excellent progression
+        - **Good (50-89%)**: Students with good progression  
+        - **Poor (0-49%)**: Students needing improvement
     - **Status Filter** (Assessment Search only): 
         - **All**: Show all students
         - **Pending + Failed**: Show students requiring attention
         - **Pending**: Show students who haven't completed the test
         - **Failed**: Show students who failed the test
         - **Passed**: Show students who passed the test
-    - **Completion Date**: Show students finishing soon (within 30 days) - Available in both search modes
     
-    ## Data Export
+    ## Progression Rate Calculation
     
-    **Download Options:**
-    - **Excel Download**: Download all student data in Excel format with sheet name "SMEI"
-    - The download contains the complete dataset without any filters applied
-    - Useful for backup purposes or further analysis in other tools
+    **Formula:**
+    ```
+    Progression Rate = (Passed Assessments / Total Required Assessments) × 100
+    ```
     
-    ## Search Function Improvements
-    
-    **Unified Search Box:**
-    - Enter either student name or ID in the search box
-    - System automatically searches both name and ID fields
-    - Supports partial matching and case-insensitive search
+    **Color Coding:**
+    - 🟢 **Green (90-100%)**: Excellent progression
+    - 🟡 **Yellow (50-89%)**: Good progression
+    - 🔴 **Red (0-49%)**: Needs improvement
     
     ## Attendance Tracking
     
@@ -925,7 +1038,15 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     - Students with attendance below 80% are marked as **At Risk**
     - Attendance status is color-coded for easy identification:
         - 🟢 **Good**: 80% and above
-        - 🔴 **At Risk**: Below 80%
+        - 🟡 **Warning**: 50-79%
+        - 🔴 **Poor**: Below 50%
+    
+    ## Data Export
+    
+    **Download Options:**
+    - **Excel Download**: Download all student data in Excel format with sheet name "SMEI"
+    - The download contains the complete dataset including progression rates
+    - Useful for backup purposes or further analysis in other tools
     
     ## Assessment Status Definitions
     
@@ -962,11 +1083,11 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     
     ## Technical Notes
     
-    - The app automatically refreshes data when the Excel file is updated
+    - The app automatically calculates progression rates for all students
     - All date formats are standardized as YYYY-MM-DD
     - Phone numbers are automatically formatted to ensure they start with 0
     - The system caches data for performance but will reload when changes are detected
-    - For data accuracy, ensure the Excel file follows the correct structure
+    - For data accuracy, ensure the CSV file follows the correct structure
     """)
 
 # Footer
@@ -979,4 +1100,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
