@@ -234,16 +234,16 @@ ASSESSMENT_ORDER = [
     'Advanced End Course Test'
 ]
 
-# Load student data
+# Load student data - FIXED: Now reads Excel file instead of CSV
 @st.cache_data
 def load_student_data():
     try:
-        # Load from CSV file (updated from Excel)
-        df = pd.read_csv("SMEI Student Progression.csv")
+        # Load from Excel file - FIXED: Changed from CSV to Excel
+        df = pd.read_excel("SMEI Student Progression.xlsx", sheet_name="SMEI")
 
         # Ensure date columns are datetime
-        df['Start Date'] = pd.to_datetime(df['Start Date'], format='%d/%m/%Y', errors='coerce')
-        df['Finish Date'] = pd.to_datetime(df['Finish Date'], format='%d/%m/%Y', errors='coerce')
+        df['Start Date'] = pd.to_datetime(df['Start Date'], errors='coerce')
+        df['Finish Date'] = pd.to_datetime(df['Finish Date'], errors='coerce')
 
         # Standardize course names
         df['Course'] = df['Course'].replace({
@@ -257,7 +257,7 @@ def load_student_data():
         return df
     except Exception as e:
         st.error(f"Error loading student data: {e}")
-        st.info("Please ensure 'SMEI Student Progression.csv' is in the same folder as the app")
+        st.info("Please ensure 'SMEI Student Progression.xlsx' is in the same folder as the app with a sheet named 'SMEI'")
         return pd.DataFrame()
 
 def calculate_progression_rate(df):
@@ -651,7 +651,7 @@ else:  # Assessment Test search
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Apply course filter to base dataset
+# Apply course filter to base dataset - FIXED: Added check for empty dataframe
 if not df.empty:
     if course_filter == "General English":
         base_filtered_df = df[df['Course'] == 'General English']
@@ -659,8 +659,10 @@ if not df.empty:
         base_filtered_df = df[df['Course'] == 'EAP']
     else:
         base_filtered_df = df.copy()
+else:
+    base_filtered_df = pd.DataFrame()  # Empty dataframe if no data loaded
 
-# For Student search: apply attendance and progression filters
+# For Student search: apply attendance and progression filters - FIXED: Added check for empty dataframe
 if search_type == "Student Name/ID" and not df.empty:
     filtered_df = base_filtered_df.copy()
     
@@ -684,12 +686,12 @@ if search_type == "Student Name/ID" and not df.empty:
 else:
     filtered_df = base_filtered_df.copy()
 
-# Display results based on search type
+# Display results based on search type - FIXED: Added check for empty dataframe
 if search_type == "Student Name/ID":
     # Simplified search interface - single search box for both name and ID
     search_term = st.text_input("Enter student name/ID:")
     
-    if search_term:
+    if search_term and not df.empty:
         # Search in both Name and StudentID columns
         name_results = filtered_df[filtered_df['Name'].str.contains(search_term, case=False, na=False)]
         id_results = filtered_df[filtered_df['StudentID'].astype(str).str.contains(search_term, case=False, na=False)]
@@ -823,6 +825,8 @@ if search_type == "Student Name/ID":
         else:
             st.warning("No matching students found")
     
+    elif search_term:
+        st.warning("No data available. Please check if the Excel file is properly loaded.")
     else:
         st.info("👆 Enter a student name or ID to search")
 
@@ -837,7 +841,7 @@ else:  # Assessment Test search
         ["Select an assessment"] + all_assessments
     )
     
-    if assessment_search != "Select an assessment":
+    if assessment_search != "Select an assessment" and not df.empty:
         # Map the status filter to the actual status values
         actual_status_filter = "All"
         if status_filter == "Pending + Failed":
@@ -914,8 +918,10 @@ else:  # Assessment Test search
             st.dataframe(assessment_display_df, use_container_width=True)
         else:
             st.info(f"No students require {assessment_search} with current filters")
+    elif assessment_search != "Select an assessment":
+        st.warning("No data available. Please check if the Excel file is properly loaded.")
 
-# Display all students with enhanced information including progression rate
+# Display all students with enhanced information including progression rate - FIXED: Added check for empty dataframe
 if not df.empty and search_type == "Student Name/ID" and not search_term:
     st.subheader("👥 All Students")
     
@@ -1087,7 +1093,7 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     - All date formats are standardized as YYYY-MM-DD
     - Phone numbers are automatically formatted to ensure they start with 0
     - The system caches data for performance but will reload when changes are detected
-    - For data accuracy, ensure the CSV file follows the correct structure
+    - For data accuracy, ensure the Excel file follows the correct structure
     """)
 
 # Footer
@@ -1100,5 +1106,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-
