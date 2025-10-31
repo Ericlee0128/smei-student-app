@@ -359,14 +359,24 @@ def calculate_test_status(student_data):
     }
 
 
-def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All"):
+def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All", show_upcoming=False):
     """Get all students who should take a specific assessment"""
     students_with_assessment = []
+    
+    # Apply date filter if selected
+    if show_upcoming:
+        today = pd.Timestamp.now()
+        thirty_days_later = today + pd.Timedelta(days=30)
     
     for idx, student in df.iterrows():
         # Apply course filter
         if course_filter != "All" and student['Course'] != course_filter:
             continue
+            
+        # Apply date filter if selected
+        if show_upcoming:
+            if not ((student['Finish Date'] >= today) & (student['Finish Date'] <= thirty_days_later)):
+                continue
             
         required_tests = get_required_assessments(
             student['Course'],
@@ -451,6 +461,40 @@ def load_and_display_logo():
         return False
 
 
+def create_excel_download(df):
+    """Create Excel file for download with SMEI sheet name"""
+    try:
+        # Create a BytesIO buffer
+        buffer = io.BytesIO()
+        
+        # Write DataFrame to Excel with sheet name 'SMEI'
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name='SMEI', index=False)
+            
+            # Get the workbook and worksheet
+            workbook = writer.book
+            worksheet = writer.sheets['SMEI']
+            
+            # Add some formatting
+            header_format = workbook.add_format({
+                'bold': True,
+                'text_wrap': True,
+                'valign': 'top',
+                'fg_color': '#D7E4BC',
+                'border': 1
+            })
+            
+            # Write the column headers with the defined format
+            for col_num, value in enumerate(df.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+        
+        buffer.seek(0)
+        return buffer
+    except Exception as e:
+        st.error(f"Error creating Excel file: {e}")
+        return None
+
+
 # Main application
 
 # Display SMEI Logo and Header
@@ -517,6 +561,10 @@ else:  # Assessment Test search
             ["All", "Pending + Failed", "Pending", "Failed", "Passed"],
             horizontal=True
         )
+    
+    with col4:
+        # Date filter for upcoming completions - Now available for Assessment search too
+        show_upcoming_assessment = st.checkbox("Show students finishing soon (within 30 days)")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -714,7 +762,8 @@ else:  # Assessment Test search
             assessment_search, 
             "General English" if course_filter == "General English" else 
             "EAP" if course_filter == "EAP" else "All",
-            actual_status_filter
+            actual_status_filter,
+            show_upcoming_assessment  # Pass the date filter to the function
         )
         
         # If "Pending + Failed" is selected, filter the results
@@ -805,17 +854,19 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
     with col3:
         st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
 
-# Download CSV Section - Added between main content and instructions
+# Download Section - Added between main content and instructions
 if not df.empty:
     st.markdown("---")
     st.markdown('<div class="download-section">', unsafe_allow_html=True)
     st.subheader("📥 Download Complete Student Data")
     
-    # Prepare CSV for download (original unfiltered data)
-    csv = df.to_csv(index=False)
+    # Create download options
+    col1, col2 = st.columns(2)
     
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    with col1:
+        # Prepare CSV for download (original unfiltered data)
+        csv = df.to_csv(index=False)
+        
         st.download_button(
             label="Download Full Dataset as CSV",
             data=csv,
@@ -824,6 +875,19 @@ if not df.empty:
             help="Download the complete student dataset without any filters applied"
         )
         st.caption("This download contains all student data without any filters applied")
+    
+    with col2:
+        # Create Excel download
+        excel_buffer = create_excel_download(df)
+        if excel_buffer:
+            st.download_button(
+                label="Download Full Dataset as Excel",
+                data=excel_buffer,
+                file_name="SMEI Student Progression.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="Download the complete student dataset in Excel format without any filters applied"
+            )
+            st.caption("Excel file with sheet named 'SMEI' containing all student data")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -847,14 +911,15 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
         - **Pending**: Show students who haven't completed the test
         - **Failed**: Show students who failed the test
         - **Passed**: Show students who passed the test
-    - **Completion Date**: Show students finishing soon (within 30 days)
+    - **Completion Date**: Show students finishing soon (within 30 days) - Available in both search modes
     
     ## Data Export
     
-    **CSV Download:**
-    - Use the "Download Full Dataset as CSV" button above to export all student data
-    - The downloaded file contains the complete dataset without any filters applied
-    - This is useful for backup purposes or further analysis in other tools
+    **Download Options:**
+    - **CSV Download**: Download all student data in CSV format
+    - **Excel Download**: Download all student data in Excel format with sheet name "SMEI"
+    - Both downloads contain the complete dataset without any filters applied
+    - Useful for backup purposes or further analysis in other tools
     
     ## Search Function Improvements
     
@@ -924,4 +989,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
