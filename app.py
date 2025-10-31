@@ -148,6 +148,13 @@ st.markdown("""
         color: #e74c3c;
         font-weight: bold;
     }
+    .download-section {
+        background-color: #f0f2f6;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 2rem 0;
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -444,65 +451,6 @@ def load_and_display_logo():
         return False
 
 
-def download_excel_template():
-    """Create a downloadable Excel template"""
-    try:
-        # Create a sample DataFrame with the same structure
-        sample_data = {
-            'StudentID': ['S001', 'S002'],
-            'Name': ['John Smith', 'Jane Doe'],
-            'Course': ['General English', 'EAP'],
-            'Start Date': [datetime.now(), datetime.now()],
-            'Finish Date': [datetime.now() + pd.Timedelta(days=60), datetime.now() + pd.Timedelta(days=90)],
-            'Duration (weeks)': [12, 15],
-            'Attendance': [85, 92],
-            'Phone': ['+61 412 345 678', '+61 423 456 789'],
-            'Elementary Mid Course Test': ['', ''],
-            'Elementary End Course Test': ['', ''],
-            'Pre Intermediate Mid Course Test': ['', ''],
-            'Pre Intermediate End Course Test': ['', ''],
-            'Intermediate Mid Course Test': ['65', ''],
-            'Intermediate End Course Test': ['', ''],
-            'Upper Intermediate Mid Course Test': ['', ''],
-            'Upper Intermediate End Course Test': ['', ''],
-            'Advanced Mid Course Test': ['', ''],
-            'Advanced End Course Test': ['', '']
-        }
-        
-        df_template = pd.DataFrame(sample_data)
-        
-        # Create a BytesIO buffer
-        buffer = io.BytesIO()
-        
-        # Write DataFrame to Excel
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_template.to_excel(writer, sheet_name='SMEI', index=False)
-            
-            # Get the workbook and worksheet
-            workbook = writer.book
-            worksheet = writer.sheets['SMEI']
-            
-            # Add some formatting
-            header_format = workbook.add_format({
-                'bold': True,
-                'text_wrap': True,
-                'valign': 'top',
-                'fg_color': '#D7E4BC',
-                'border': 1
-            })
-            
-            # Write the column headers with the defined format
-            for col_num, value in enumerate(df_template.columns.values):
-                worksheet.write(0, col_num, value, header_format)
-        
-        buffer.seek(0)
-        
-        return buffer
-    except Exception as e:
-        st.error(f"Error creating template: {e}")
-        return None
-
-
 # Main application
 
 # Display SMEI Logo and Header
@@ -511,18 +459,6 @@ logo_displayed = load_and_display_logo()
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.title("🎓 SMEI Student Progression")
-
-# Download template button
-st.sidebar.header("📁 Data Management")
-if st.sidebar.button("📥 Download Excel Template"):
-    template_buffer = download_excel_template()
-    if template_buffer:
-        st.sidebar.download_button(
-            label="Download SMEI Student Progression Template",
-            data=template_buffer,
-            file_name="SMEI_Student_Progression_Template.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
 
 # Load data
 df = load_student_data()
@@ -869,6 +805,28 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
     with col3:
         st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
 
+# Download CSV Section - Added between main content and instructions
+if not df.empty:
+    st.markdown("---")
+    st.markdown('<div class="download-section">', unsafe_allow_html=True)
+    st.subheader("📥 Download Complete Student Data")
+    
+    # Prepare CSV for download (original unfiltered data)
+    csv = df.to_csv(index=False)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.download_button(
+            label="Download Full Dataset as CSV",
+            data=csv,
+            file_name="SMEI_Student_Progression_Complete.csv",
+            mime="text/csv",
+            help="Download the complete student dataset without any filters applied"
+        )
+        st.caption("This download contains all student data without any filters applied")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
 # Enhanced Instructions Section with Data Management Focus
 with st.expander("ℹ️ Instructions & Assessment Rules"):
     st.markdown("""
@@ -891,13 +849,12 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
         - **Passed**: Show students who passed the test
     - **Completion Date**: Show students finishing soon (within 30 days)
     
-    ## Data Management
+    ## Data Export
     
-    **Excel Template Download:**
-    - Use the "Download Excel Template" button in the sidebar to get the current data structure
-    - Update student information, assessment results, and attendance data in the Excel file
-    - Ensure the updated file is named "SMEI Student Progression.xlsx" and placed in the same folder as the app
-    - The app will automatically refresh data when the Excel file is updated
+    **CSV Download:**
+    - Use the "Download Full Dataset as CSV" button above to export all student data
+    - The downloaded file contains the complete dataset without any filters applied
+    - This is useful for backup purposes or further analysis in other tools
     
     ## Search Function Improvements
     
@@ -954,7 +911,7 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     - All date formats are standardized as YYYY-MM-DD
     - Phone numbers are automatically formatted to ensure they start with 0
     - The system caches data for performance but will reload when changes are detected
-    - For data accuracy, always use the provided Excel template structure when updating student information
+    - For data accuracy, ensure the Excel file follows the correct structure
     """)
 
 # Footer
