@@ -10,7 +10,7 @@ import re
 
 # Page configuration
 st.set_page_config(
-    page_title="SMEI Student Assessment Status",
+    page_title="SMEI Student Progression",
     page_icon="🎓",
     layout="wide"
 )
@@ -135,6 +135,25 @@ st.markdown("""
         margin: 4px 2px;
         cursor: pointer;
         border-radius: 5px;
+    }
+    .download-section {
+        background-color: #e8f5e8;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border-left: 4px solid #4CAF50;
+    }
+    .attendance-good {
+        color: #2ecc71;
+        font-weight: bold;
+    }
+    .attendance-warning {
+        color: #e67e22;
+        font-weight: bold;
+    }
+    .attendance-poor {
+        color: #e74c3c;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -340,13 +359,20 @@ def calculate_test_status(student_data):
     }
 
 
-def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All"):
+def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All", attendance_filter="All"):
     """Get all students who should take a specific assessment"""
     students_with_assessment = []
     
     for idx, student in df.iterrows():
         # Apply course filter
         if course_filter != "All" and student['Course'] != course_filter:
+            continue
+            
+        # Apply attendance filter
+        attendance = student.get('Attendance', 0)
+        if attendance_filter == "Good (≥80%)" and attendance < 80:
+            continue
+        elif attendance_filter == "At Risk (<80%)" and attendance >= 80:
             continue
             
         required_tests = get_required_assessments(
@@ -367,6 +393,7 @@ def get_students_by_assessment(df, assessment_name, course_filter="All", status_
                     'Start Date': student['Start Date'],
                     'Finish Date': student['Finish Date'],
                     'Duration (weeks)': student['Duration (weeks)'],
+                    'Attendance': attendance,
                     'Phone': student['Phone'],
                     'Status': status,
                     'Recorded Value': test_value if pd.notna(test_value) else 'Not Recorded'
@@ -375,27 +402,21 @@ def get_students_by_assessment(df, assessment_name, course_filter="All", status_
     return pd.DataFrame(students_with_assessment)
 
 
-def get_all_assessments_overview(df, course_filter="All"):
-    """Get overview of all assessments and students who need to take them"""
-    assessment_overview = {}
-    
-    # Get all unique assessments in the correct order
-    all_assessments = [assessment for assessment in ASSESSMENT_ORDER 
-                      if assessment in ASSESSMENT_RULES['General English']['assessments'] or 
-                      assessment in ASSESSMENT_RULES['EAP']['assessments']]
-    
-    for assessment in all_assessments:
-        students_df = get_students_by_assessment(df, assessment, course_filter)
-        assessment_overview[assessment] = students_df
-    
-    return assessment_overview
-
-
 def format_phone(phone):
     """Format phone number to ensure it starts with 0"""
     if isinstance(phone, str) and phone.startswith('+61') and not phone.startswith('+61 0'):
         return phone.replace('+61 ', '+61 0')
     return phone
+
+
+def get_attendance_status(attendance):
+    """Get attendance status based on college requirement (≥80%)"""
+    if pd.isna(attendance):
+        return "No Data", "attendance-poor"
+    elif attendance >= 80:
+        return "Good", "attendance-good"
+    else:
+        return "At Risk", "attendance-warning"
 
 
 def load_and_display_logo():
@@ -444,7 +465,7 @@ st.markdown('<div class="logo-container">', unsafe_allow_html=True)
 logo_displayed = load_and_display_logo()
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.title("🎓 Student Assessment Status")
+st.title("🎓 SMEI Student Progression")
 
 # Load data
 df = load_student_data()
@@ -456,6 +477,11 @@ if not df.empty:
     total_students = len(df)
     eap_students = len(df[df['Course'] == 'EAP'])
     ge_students = len(df[df['Course'] == 'General English'])
+    
+    # Calculate attendance statistics
+    good_attendance = len(df[df['Attendance'] >= 80])
+    at_risk_attendance = len(df[df['Attendance'] < 80])
+    no_attendance_data = len(df[df['Attendance'].isna()])
 
     # Calculate completion statistics
     total_completed_tests = 0
@@ -471,463 +497,460 @@ if not df.empty:
     st.sidebar.metric("Total Students", total_students)
     st.sidebar.metric("EAP Students", eap_students)
     st.sidebar.metric("GE Students", ge_students)
+    st.sidebar.metric("Good Attendance (≥80%)", good_attendance)
+    st.sidebar.metric("At Risk Attendance (<80%)", at_risk_attendance)
 
-# Create tabs for the main content
-tab1, tab2 = st.tabs(["🔍 Student Search", "📋 Assessment Overview"])
+# Data Download Section
+st.markdown('<div class="download-section">', unsafe_allow_html=True)
+st.subheader("📥 Download Data for Updates")
 
-# Tab 1: Student Search
-with tab1:
-    # Search and Filter Section
-    st.markdown('<div class="filter-section">', unsafe_allow_html=True)
-    st.subheader("🔍 Search & Filter Options")
+col1, col2 = st.columns(2)
 
-    col1, col2, col3 = st.columns([1, 1, 1])
-
-    with col1:
-        search_type = st.radio("Search by:", ["Student Name/ID", "Assessment Test"])
-
-    with col2:
-        course_filter = st.selectbox(
-            "Filter by Course:",
-            ["All Courses", "General English", "EAP"]
-        )
-
-    with col3:
-        # Date filter for upcoming completions
-        show_upcoming = st.checkbox("Show students finishing soon (within 30 days)")
-
-    # Apply course filter
+with col1:
+    # Download current data as CSV
     if not df.empty:
-        if course_filter == "General English":
-            filtered_df = df[df['Course'] == 'General English']
-        elif course_filter == "EAP":
-            filtered_df = df[df['Course'] == 'EAP']
-        else:
-            filtered_df = df.copy()
-        
-        # Apply date filter if selected
-        if show_upcoming:
-            today = pd.Timestamp.now()
-            thirty_days_later = today + pd.Timedelta(days=30)
-            filtered_df = filtered_df[
-                (filtered_df['Finish Date'] >= today) & 
-                (filtered_df['Finish Date'] <= thirty_days_later)
-            ]
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Display results based on search type
-    if search_type == "Student Name/ID":
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            search_by = st.radio("Search using:", ["Student Name", "Student ID"])
-        
-        with col2:
-            if search_by == "Student Name":
-                search_term = st.text_input("Enter student name:")
-            else:
-                search_term = st.text_input("Enter student ID:")
-
-        if search_term:
-            if search_by == "Student Name":
-                results = filtered_df[filtered_df['Name'].str.contains(search_term, case=False, na=False)]
-            else:
-                results = filtered_df[filtered_df['StudentID'].str.contains(search_term, case=False, na=False)]
-
-            if not results.empty:
-                # Student selection
-                if len(results) > 1:
-                    selected_student_name = st.selectbox(
-                        "Select Student:",
-                        results['Name'].tolist()
-                    )
-                    student_data = results[results['Name'] == selected_student_name].iloc[0]
-                else:
-                    student_data = results.iloc[0]
-
-                # Calculate test status
-                test_status = calculate_test_status(student_data)
-
-                # Display student information
-                st.markdown(f'<div class="student-info">', unsafe_allow_html=True)
-
-                st.subheader(f"Student Information: {student_data['Name']}")
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    st.write(f"**Student ID:** {student_data['StudentID']}")
-                    st.write(f"**Course:** {student_data['Course']}")
-
-                with col2:
-                    st.write(f"**Start Date:** {student_data['Start Date'].strftime('%Y-%m-%d')}")
-                    st.write(f"**End Date:** {student_data['Finish Date'].strftime('%Y-%m-%d')}")
-
-                with col3:
-                    st.write(f"**Duration:** {student_data['Duration (weeks)']} weeks")
-                    # Format phone number to ensure it starts with 0
-                    phone = format_phone(student_data['Phone'])
-                    st.write(f"**Phone:** {phone}")
-
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                # Display test status summary with Remaining Tests
-                st.subheader("📋 Assessment Status Summary")
-
-                col1, col2, col3, col4 = st.columns(4)
-
-                with col1:
-                    st.metric("Required Tests", len(test_status['required_tests']))
-                with col2:
-                    st.metric("Passed", len(test_status['passed_tests']))
-                with col3:
-                    st.metric("Failed", len(test_status['failed_tests']))
-                with col4:
-                    st.metric("Remaining Tests", test_status['remaining_tests'])
-
-                # Display simplified test status table
-                st.subheader("📝 Assessment Status")
-
-                # Create a table with all required tests and their status
-                test_data = []
-                for test in test_status['required_tests']:
-                    detail = test_status['test_details'][test]
-                    
-                    # Determine status display and row class
-                    if detail['type'] == 'passed':
-                        status_display = "✅ Passed"
-                        row_class = "status-passed-row"
-                    elif detail['type'] == 'failed':
-                        status_display = "❌ Failed"
-                        row_class = "status-failed-row"
-                    else:
-                        status_display = "⏳ Pending"
-                        row_class = "status-pending-row"
-                    
-                    test_data.append({
-                        'Assessment': test,
-                        'Status': status_display,
-                        'Recorded Value': detail['value'] if detail['value'] else 'Not Recorded'
-                    })
-
-                if test_data:
-                    # Create a DataFrame for the table
-                    test_df = pd.DataFrame(test_data)
-                    
-                    # Display as a styled table
-                    st.markdown("""
-                    <table class="test-table">
-                        <thead>
-                            <tr>
-                                <th>Assessment</th>
-                                <th>Status</th>
-                                <th>Recorded Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                    """, unsafe_allow_html=True)
-                    
-                    for idx, row in test_df.iterrows():
-                        # Determine row class based on status
-                        if "✅" in row['Status']:
-                            row_class = "status-passed-row"
-                        elif "❌" in row['Status']:
-                            row_class = "status-failed-row"
-                        else:
-                            row_class = "status-pending-row"
-                            
-                        st.markdown(f"""
-                        <tr class="{row_class}">
-                            <td>{row['Assessment']}</td>
-                            <td>{row['Status']}</td>
-                            <td>{row['Recorded Value']}</td>
-                        </tr>
-                        """, unsafe_allow_html=True)
-                    
-                    st.markdown("</tbody></table>", unsafe_allow_html=True)
-                else:
-                    st.info("No assessment data available")
-
-            else:
-                st.warning("No matching students found")
-        
-        else:
-            st.info("👆 Enter a student name or ID to search")
-
-    else:  # Assessment Test search
-        # Get assessments in correct order
-        all_assessments = [assessment for assessment in ASSESSMENT_ORDER 
-                          if assessment in ASSESSMENT_RULES['General English']['assessments'] or 
-                          assessment in ASSESSMENT_RULES['EAP']['assessments']]
-        
-        assessment_search = st.selectbox(
-            "Select Assessment to Search:",
-            ["Select an assessment"] + all_assessments
-        )
-        
-        if assessment_search != "Select an assessment":
-            # Add status filter for Pending + Failed
-            status_filter = st.radio(
-                "Show students with status:",
-                ["All", "Pending + Failed", "Pending", "Failed", "Passed"],
-                horizontal=True
-            )
-            
-            # Map the status filter to the actual status values
-            actual_status_filter = "All"
-            if status_filter == "Pending + Failed":
-                actual_status_filter = "All"  # We'll filter manually for this case
-            elif status_filter != "All":
-                actual_status_filter = status_filter
-            
-            assessment_results = get_students_by_assessment(
-                filtered_df, 
-                assessment_search, 
-                "General English" if course_filter == "General English" else 
-                "EAP" if course_filter == "EAP" else "All",
-                actual_status_filter
-            )
-            
-            # If "Pending + Failed" is selected, filter the results
-            if status_filter == "Pending + Failed":
-                assessment_results = assessment_results[assessment_results['Status'].isin(['Pending', 'Failed'])]
-            
-            if not assessment_results.empty:
-                st.subheader(f"📊 Students Requiring: {assessment_search}")
-                
-                # Display summary
-                total_students = len(assessment_results)
-                passed_students = len(assessment_results[assessment_results['Status'] == 'Passed'])
-                failed_students = len(assessment_results[assessment_results['Status'] == 'Failed'])
-                pending_students = len(assessment_results[assessment_results['Status'] == 'Pending'])
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Total Students", total_students)
-                with col2:
-                    st.metric("Passed", passed_students)
-                with col3:
-                    st.metric("Failed", failed_students)
-                with col4:
-                    st.metric("Pending", pending_students)
-                
-                # Format dates and phone numbers
-                display_results = assessment_results.copy()
-                display_results['Start Date'] = display_results['Start Date'].dt.strftime('%Y-%m-%d')
-                display_results['Finish Date'] = display_results['Finish Date'].dt.strftime('%Y-%m-%d')
-                display_results['Phone'] = display_results['Phone'].apply(format_phone)
-                
-                # Display detailed table with all requested columns
-                display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Phone', 'Status', 'Recorded Value']
-                assessment_display_df = display_results[display_cols].copy()
-                assessment_display_df.index = assessment_display_df.index + 1
-                st.dataframe(assessment_display_df, use_container_width=True)
-            else:
-                st.info(f"No students require {assessment_search} with current filters")
-
-    # Display all students with enhanced information
-    if not df.empty and search_type == "Student Name/ID" and not search_term:
-        st.subheader("👥 All Students")
-        
-        # Enhanced display with all requested columns
-        display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Phone']
-        display_df = filtered_df[display_cols].copy()
-        
-        # Format dates
-        display_df['Start Date'] = display_df['Start Date'].dt.strftime('%Y-%m-%d')
-        display_df['Finish Date'] = display_df['Finish Date'].dt.strftime('%Y-%m-%d')
-        
-        # Format phone numbers
-        display_df['Phone'] = display_df['Phone'].apply(format_phone)
-        
-        display_df.index = display_df.index + 1
-        st.dataframe(display_df, use_container_width=True)
-
-        # Summary statistics
-        st.subheader("📈 Summary Statistics")
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric("Total Students", len(filtered_df))
-        with col2:
-            st.metric("EAP Students", len(filtered_df[filtered_df['Course'] == 'EAP']))
-        with col3:
-            st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
-
-    # Test management section (only show when a student is selected)
-    if 'student_data' in locals() and 'results' in locals() and not results.empty:
-        st.subheader("🔄 Assessment Status Management")
-
-        st.info("""
-        **Assessment Status Guide:**
-        - **Passed**: Assessment completed successfully (keywords: Passed, Pass, Completed, Complete, OR score ≥ 50)
-        - **Failed**: Assessment completed but not passed (keywords: Failed, Fail, OR score < 50)  
-        - **Pending**: Assessment not yet attempted (leave blank)
-        """)
-
-        # Download current data
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Download Current Data (CSV)",
             data=csv,
             file_name="SMEI_Student_Progression.csv",
             mime="text/csv",
+            help="Download the current student data in CSV format for updates"
         )
 
-        st.write("**Update Instructions:**")
-        st.write("1. Download the CSV file above")
-        st.write("2. Open in Excel and update assessment status using these keywords:")
-        st.write("   - ✅ **Passed**: 'Passed', 'Pass', 'Completed', 'Complete', OR score ≥ 50")
-        st.write("   - ❌ **Failed**: 'Failed', 'Fail', OR score < 50")
-        st.write("   - ⏳ **Pending**: Leave blank")
-        st.write("3. Save as Excel format (.xlsx)")
-        st.write("4. Upload to GitHub repository to replace the current file")
-        st.write("5. The app will automatically update with new data")
+with col2:
+    # Download current data as Excel
+    if not df.empty:
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='SMEI')
+        excel_data = excel_buffer.getvalue()
+        
+        st.download_button(
+            label="📥 Download Current Data (Excel)",
+            data=excel_data,
+            file_name="SMEI_Student_Progression.xlsx",
+            mime="application/vnd.ms-excel",
+            help="Download the current student data in Excel format for updates"
+        )
 
-# Tab 2: Assessment Overview
-with tab2:
-    st.header("📋 Assessment Overview")
-    st.info("This view shows all assessments and the students who need to complete them.")
-    
-    # Course filter for assessment overview
-    course_filter_overview = st.selectbox(
+st.info("""
+**Data Update Instructions:**
+1. Download the data file above (CSV or Excel format)
+2. Open the file and update assessment status using the accepted keywords
+3. Save your changes
+4. Replace the original 'SMEI Student Progression.xlsx' file in the app folder
+5. The app will automatically refresh with the updated data
+""")
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Search and Filter Section
+st.markdown('<div class="filter-section">', unsafe_allow_html=True)
+st.subheader("🔍 Search & Filter Options")
+
+col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+
+with col1:
+    search_type = st.radio("Search by:", ["Student Name/ID", "Assessment Test"])
+
+with col2:
+    course_filter = st.selectbox(
         "Filter by Course:",
-        ["All Courses", "General English", "EAP"],
-        key="overview_filter"
+        ["All Courses", "General English", "EAP"]
+    )
+
+with col3:
+    # Attendance filter
+    attendance_filter = st.selectbox(
+        "Filter by Attendance:",
+        ["All", "Good (≥80%)", "At Risk (<80%)"]
+    )
+
+with col4:
+    # Date filter for upcoming completions
+    show_upcoming = st.checkbox("Show students finishing soon (within 30 days)")
+
+# Apply course filter
+if not df.empty:
+    if course_filter == "General English":
+        filtered_df = df[df['Course'] == 'General English']
+    elif course_filter == "EAP":
+        filtered_df = df[df['Course'] == 'EAP']
+    else:
+        filtered_df = df.copy()
+    
+    # Apply attendance filter
+    if attendance_filter == "Good (≥80%)":
+        filtered_df = filtered_df[filtered_df['Attendance'] >= 80]
+    elif attendance_filter == "At Risk (<80%)":
+        filtered_df = filtered_df[filtered_df['Attendance'] < 80]
+    
+    # Apply date filter if selected
+    if show_upcoming:
+        today = pd.Timestamp.now()
+        thirty_days_later = today + pd.Timedelta(days=30)
+        filtered_df = filtered_df[
+            (filtered_df['Finish Date'] >= today) & 
+            (filtered_df['Finish Date'] <= thirty_days_later)
+        ]
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Display results based on search type
+if search_type == "Student Name/ID":
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        search_by = st.radio("Search using:", ["Student Name", "Student ID"])
+    
+    with col2:
+        if search_by == "Student Name":
+            search_term = st.text_input("Enter student name:")
+        else:
+            search_term = st.text_input("Enter student ID:")
+
+    if search_term:
+        if search_by == "Student Name":
+            results = filtered_df[filtered_df['Name'].str.contains(search_term, case=False, na=False)]
+        else:
+            results = filtered_df[filtered_df['StudentID'].str.contains(search_term, case=False, na=False)]
+
+        if not results.empty:
+            # Student selection
+            if len(results) > 1:
+                selected_student_name = st.selectbox(
+                    "Select Student:",
+                    results['Name'].tolist()
+                )
+                student_data = results[results['Name'] == selected_student_name].iloc[0]
+            else:
+                student_data = results.iloc[0]
+
+            # Calculate test status
+            test_status = calculate_test_status(student_data)
+
+            # Display student information
+            st.markdown(f'<div class="student-info">', unsafe_allow_html=True)
+
+            st.subheader(f"Student Information: {student_data['Name']}")
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.write(f"**Student ID:** {student_data['StudentID']}")
+                st.write(f"**Course:** {student_data['Course']}")
+
+            with col2:
+                st.write(f"**Start Date:** {student_data['Start Date'].strftime('%Y-%m-%d')}")
+                st.write(f"**End Date:** {student_data['Finish Date'].strftime('%Y-%m-%d')}")
+
+            with col3:
+                st.write(f"**Duration:** {student_data['Duration (weeks)']} weeks")
+                # Format phone number to ensure it starts with 0
+                phone = format_phone(student_data['Phone'])
+                st.write(f"**Phone:** {phone}")
+
+            with col4:
+                attendance = student_data.get('Attendance', 0)
+                attendance_status, attendance_class = get_attendance_status(attendance)
+                st.write(f"**Attendance:** <span class='{attendance_class}'>{attendance}% ({attendance_status})</span>", unsafe_allow_html=True)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # Display test status summary with Remaining Tests
+            st.subheader("📋 Assessment Status Summary")
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("Required Tests", len(test_status['required_tests']))
+            with col2:
+                st.metric("Passed", len(test_status['passed_tests']))
+            with col3:
+                st.metric("Failed", len(test_status['failed_tests']))
+            with col4:
+                st.metric("Remaining Tests", test_status['remaining_tests'])
+
+            # Display simplified test status table
+            st.subheader("📝 Assessment Status")
+
+            # Create a table with all required tests and their status
+            test_data = []
+            for test in test_status['required_tests']:
+                detail = test_status['test_details'][test]
+                
+                # Determine status display and row class
+                if detail['type'] == 'passed':
+                    status_display = "✅ Passed"
+                    row_class = "status-passed-row"
+                elif detail['type'] == 'failed':
+                    status_display = "❌ Failed"
+                    row_class = "status-failed-row"
+                else:
+                    status_display = "⏳ Pending"
+                    row_class = "status-pending-row"
+                
+                test_data.append({
+                    'Assessment': test,
+                    'Status': status_display,
+                    'Recorded Value': detail['value'] if detail['value'] else 'Not Recorded'
+                })
+
+            if test_data:
+                # Create a DataFrame for the table
+                test_df = pd.DataFrame(test_data)
+                
+                # Display as a styled table
+                st.markdown("""
+                <table class="test-table">
+                    <thead>
+                        <tr>
+                            <th>Assessment</th>
+                            <th>Status</th>
+                            <th>Recorded Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """, unsafe_allow_html=True)
+                
+                for idx, row in test_df.iterrows():
+                    # Determine row class based on status
+                    if "✅" in row['Status']:
+                        row_class = "status-passed-row"
+                    elif "❌" in row['Status']:
+                        row_class = "status-failed-row"
+                    else:
+                        row_class = "status-pending-row"
+                        
+                    st.markdown(f"""
+                    <tr class="{row_class}">
+                        <td>{row['Assessment']}</td>
+                        <td>{row['Status']}</td>
+                        <td>{row['Recorded Value']}</td>
+                    </tr>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown("</tbody></table>", unsafe_allow_html=True)
+            else:
+                st.info("No assessment data available")
+
+        else:
+            st.warning("No matching students found")
+    
+    else:
+        st.info("👆 Enter a student name or ID to search")
+
+else:  # Assessment Test search
+    # Get assessments in correct order
+    all_assessments = [assessment for assessment in ASSESSMENT_ORDER 
+                      if assessment in ASSESSMENT_RULES['General English']['assessments'] or 
+                      assessment in ASSESSMENT_RULES['EAP']['assessments']]
+    
+    assessment_search = st.selectbox(
+        "Select Assessment to Search:",
+        ["Select an assessment"] + all_assessments
     )
     
-    # Get all assessments overview
-    if not df.empty:
-        assessment_overview = get_all_assessments_overview(
-            df, 
-            "General English" if course_filter_overview == "General English" else 
-            "EAP" if course_filter_overview == "EAP" else "All"
+    if assessment_search != "Select an assessment":
+        # Add status filter for Pending + Failed
+        status_filter = st.radio(
+            "Show students with status:",
+            ["All", "Pending + Failed", "Pending", "Failed", "Passed"],
+            horizontal=True
         )
         
-        # Create tabs for each assessment in the correct order
-        assessment_tabs = st.tabs([assessment for assessment in assessment_overview.keys()])
+        # Map the status filter to the actual status values
+        actual_status_filter = "All"
+        if status_filter == "Pending + Failed":
+            actual_status_filter = "All"  # We'll filter manually for this case
+        elif status_filter != "All":
+            actual_status_filter = status_filter
         
-        for i, (assessment_name, students_df) in enumerate(assessment_overview.items()):
-            with assessment_tabs[i]:
-                if not students_df.empty:
-                    st.subheader(f"📊 {assessment_name}")
-                    
-                    # Display summary
-                    total_students = len(students_df)
-                    passed_students = len(students_df[students_df['Status'] == 'Passed'])
-                    failed_students = len(students_df[students_df['Status'] == 'Failed'])
-                    pending_students = len(students_df[students_df['Status'] == 'Pending'])
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Students", total_students)
-                    with col2:
-                        st.metric("Passed", passed_students, 
-                                 delta=f"{(passed_students/total_students*100):.1f}%" if total_students > 0 else "0%")
-                    with col3:
-                        st.metric("Failed", failed_students,
-                                 delta=f"{(failed_students/total_students*100):.1f}%" if total_students > 0 else "0%",
-                                 delta_color="inverse")
-                    with col4:
-                        st.metric("Pending", pending_students,
-                                 delta=f"{(pending_students/total_students*100):.1f}%" if total_students > 0 else "0%")
-                    
-                    # Format dates and phone numbers
-                    display_students_df = students_df.copy()
-                    display_students_df['Start Date'] = display_students_df['Start Date'].dt.strftime('%Y-%m-%d')
-                    display_students_df['Finish Date'] = display_students_df['Finish Date'].dt.strftime('%Y-%m-%d')
-                    display_students_df['Phone'] = display_students_df['Phone'].apply(format_phone)
-                    
-                    # Display students by status - Now including "Pending & Failed" tab
-                    status_tabs = st.tabs(["Pending & Failed", "All Students", "Pending", "Failed", "Passed"])
-                    
-                    # Define columns to display
-                    display_columns = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Phone', 'Status', 'Recorded Value']
-                    
-                    with status_tabs[0]:  # Pending & Failed
-                        pending_failed_df = display_students_df[display_students_df['Status'].isin(['Pending', 'Failed'])][display_columns].copy()
-                        if not pending_failed_df.empty:
-                            pending_failed_df.index = pending_failed_df.index + 1
-                            st.dataframe(pending_failed_df, use_container_width=True)
-                            
-                            # Show count for Pending & Failed
-                            st.info(f"**Total Pending & Failed Students:** {len(pending_failed_df)}")
-                        else:
-                            st.info("No students with pending or failed status")
-                    
-                    with status_tabs[1]:  # All
-                        display_df = display_students_df[display_columns].copy()
-                        display_df.index = display_df.index + 1
-                        st.dataframe(display_df, use_container_width=True)
-                    
-                    with status_tabs[2]:  # Pending
-                        pending_df = display_students_df[display_students_df['Status'] == 'Pending'][display_columns].copy()
-                        if not pending_df.empty:
-                            pending_df.index = pending_df.index + 1
-                            st.dataframe(pending_df, use_container_width=True)
-                        else:
-                            st.info("No students with pending status")
-                    
-                    with status_tabs[3]:  # Failed
-                        failed_df = display_students_df[display_students_df['Status'] == 'Failed'][display_columns].copy()
-                        if not failed_df.empty:
-                            failed_df.index = failed_df.index + 1
-                            st.dataframe(failed_df, use_container_width=True)
-                        else:
-                            st.info("No students with failed status")
-                    
-                    with status_tabs[4]:  # Passed
-                        passed_df = display_students_df[display_students_df['Status'] == 'Passed'][display_columns].copy()
-                        if not passed_df.empty:
-                            passed_df.index = passed_df.index + 1
-                            st.dataframe(passed_df, use_container_width=True)
-                        else:
-                            st.info("No students with passed status")
-                            
+        assessment_results = get_students_by_assessment(
+            filtered_df, 
+            assessment_search, 
+            "General English" if course_filter == "General English" else 
+            "EAP" if course_filter == "EAP" else "All",
+            actual_status_filter,
+            attendance_filter
+        )
+        
+        # If "Pending + Failed" is selected, filter the results
+        if status_filter == "Pending + Failed":
+            assessment_results = assessment_results[assessment_results['Status'].isin(['Pending', 'Failed'])]
+        
+        if not assessment_results.empty:
+            st.subheader(f"📊 Students Requiring: {assessment_search}")
+            
+            # Display summary
+            total_students = len(assessment_results)
+            passed_students = len(assessment_results[assessment_results['Status'] == 'Passed'])
+            failed_students = len(assessment_results[assessment_results['Status'] == 'Failed'])
+            pending_students = len(assessment_results[assessment_results['Status'] == 'Pending'])
+            
+            # Calculate attendance statistics for these students
+            good_attendance_count = len(assessment_results[assessment_results['Attendance'] >= 80])
+            at_risk_attendance_count = len(assessment_results[assessment_results['Attendance'] < 80])
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Students", total_students)
+            with col2:
+                st.metric("Passed", passed_students)
+            with col3:
+                st.metric("Failed", failed_students)
+            with col4:
+                st.metric("Pending", pending_students)
+            
+            # Attendance stats
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Good Attendance (≥80%)", good_attendance_count)
+            with col2:
+                st.metric("At Risk Attendance (<80%)", at_risk_attendance_count)
+            
+            # Format dates and phone numbers
+            display_results = assessment_results.copy()
+            display_results['Start Date'] = display_results['Start Date'].dt.strftime('%Y-%m-%d')
+            display_results['Finish Date'] = display_results['Finish Date'].dt.strftime('%Y-%m-%d')
+            display_results['Phone'] = display_results['Phone'].apply(format_phone)
+            
+            # Add download button for filtered results
+            st.download_button(
+                label=f"📥 Download {assessment_search} Results (CSV)",
+                data=display_results.to_csv(index=False).encode('utf-8'),
+                file_name=f"SMEI_{assessment_search.replace(' ', '_')}_Results.csv",
+                mime="text/csv"
+            )
+            
+            # Display detailed table with all requested columns including attendance
+            display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Phone', 'Status', 'Recorded Value']
+            assessment_display_df = display_results[display_cols].copy()
+            
+            # Format attendance with color coding
+            def format_attendance(val):
+                if pd.isna(val):
+                    return "No Data"
+                elif val >= 80:
+                    return f"🟢 {val}%"
                 else:
-                    st.info(f"No students require {assessment_name} with current filters")
+                    return f"🔴 {val}%"
+            
+            assessment_display_df['Attendance'] = assessment_display_df['Attendance'].apply(format_attendance)
+            assessment_display_df.index = assessment_display_df.index + 1
+            st.dataframe(assessment_display_df, use_container_width=True)
+        else:
+            st.info(f"No students require {assessment_search} with current filters")
 
-# Instructions
+# Display all students with enhanced information
+if not df.empty and search_type == "Student Name/ID" and not search_term:
+    st.subheader("👥 All Students")
+    
+    # Enhanced display with all requested columns including attendance
+    display_cols = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Attendance', 'Phone']
+    display_df = filtered_df[display_cols].copy()
+    
+    # Format dates
+    display_df['Start Date'] = display_df['Start Date'].dt.strftime('%Y-%m-%d')
+    display_df['Finish Date'] = display_df['Finish Date'].dt.strftime('%Y-%m-%d')
+    
+    # Format phone numbers
+    display_df['Phone'] = display_df['Phone'].apply(format_phone)
+    
+    # Format attendance with color coding
+    def format_attendance(val):
+        if pd.isna(val):
+            return "No Data"
+        elif val >= 80:
+            return f"🟢 {val}%"
+        else:
+            return f"🔴 {val}%"
+    
+    display_df['Attendance'] = display_df['Attendance'].apply(format_attendance)
+    
+    # Add download button for all students
+    st.download_button(
+        label="📥 Download All Students Data (CSV)",
+        data=filtered_df.to_csv(index=False).encode('utf-8'),
+        file_name="SMEI_All_Students.csv",
+        mime="text/csv"
+    )
+    
+    display_df.index = display_df.index + 1
+    st.dataframe(display_df, use_container_width=True)
+
+    # Summary statistics
+    st.subheader("📈 Summary Statistics")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Total Students", len(filtered_df))
+    with col2:
+        st.metric("EAP Students", len(filtered_df[filtered_df['Course'] == 'EAP']))
+    with col3:
+        st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
+    with col4:
+        good_attendance_filtered = len(filtered_df[filtered_df['Attendance'] >= 80])
+        st.metric("Good Attendance", good_attendance_filtered)
+
+# Enhanced Instructions Section with Data Management Focus
 with st.expander("ℹ️ Instructions & Assessment Rules"):
     st.markdown("""
-    **How to use this application:**
+    ## Data Management Instructions
     
-    **Student Search Page:**
-    1. Search by student name/ID or by specific assessment test
-    2. Use filters to narrow down results by course or completion date
-    3. View detailed assessment status for each student
+    **📥 Downloading Data for Updates:**
+    1. Use the download buttons at the top of the page to get the current dataset
+    2. Choose between CSV or Excel format based on your preference
+    3. The downloaded file contains all student records and assessment statuses
     
-    **Assessment Overview Page:**
-    1. View all assessments in separate tabs, now in proper order from Elementary to Advanced
-    2. See which students need to complete each assessment
-    3. Filter by status (Pending & Failed, All, Pending, Failed, Passed) within each assessment
-    4. Use course filter to focus on specific programs
+    **✏️ Updating Assessment Status:**
+    1. Open the downloaded file in Excel or any spreadsheet software
+    2. Update assessment status using these accepted keywords:
+       - **✅ Passed**: 'Passed', 'Pass', 'Completed', 'Complete', OR score ≥ 50
+       - **❌ Failed**: 'Failed', 'Fail', OR score < 50  
+       - **⏳ Pending**: Leave blank or empty
+    3. Save your changes to the file
     
-    **Assessment Status Definitions:**
+    **📤 Uploading Updated Data:**
+    1. Replace the existing 'SMEI Student Progression.xlsx' file in the app folder with your updated file
+    2. Ensure the file name remains exactly the same
+    3. The app will automatically refresh and display the updated data
+    
+    ## Application Usage Guide
+    
+    **Student Search Options:**
+    1. **Search by Student Name/ID**: Find individual students and view their detailed progression
+    2. **Search by Assessment Test**: Find all students who need to complete a specific assessment
+    
+    **Filter Options:**
+    - **Course Filter**: Filter by General English or EAP
+    - **Attendance Filter**: 
+        - **Good (≥80%)**: Students meeting college attendance requirements
+        - **At Risk (<80%)**: Students below the required attendance threshold
+    - **Completion Date**: Show students finishing soon (within 30 days)
+    
+    ## Attendance Tracking
+    
+    **College Requirement:**
+    - Minimum attendance requirement: **80%**
+    - Students with attendance below 80% are marked as **At Risk**
+    - Attendance status is color-coded for easy identification:
+        - 🟢 **Good**: 80% and above
+        - 🔴 **At Risk**: Below 80%
+    
+    ## Assessment Status Definitions
+    
     - **✅ Passed**: Assessment completed successfully (keywords OR score ≥ 50)
     - **❌ Failed**: Assessment completed but not passed (keywords OR score < 50)
     - **⏳ Pending**: Assessment not yet attempted
-
-    **Remaining Tests Calculation:**
+    
+    ## Remaining Tests Calculation
+    
     - Remaining = Required Tests - Passed Tests
     - Failed tests are still counted as remaining because they need to be retaken
-
-    **Accepted Keywords for Assessment Status:**
-
-    | Status | Accepted Keywords |
-    |--------|------------------|
-    | **✅ Passed** | Passed, Pass, Completed, Complete, OR score ≥ 50 |
-    | **❌ Failed** | Failed, Fail, OR score < 50 |
-    | **⏳ Pending** | Leave blank |
-
-    **Score Rules:**
-    - Scores ≥ 50 are considered Passed
-    - Scores < 50 are considered Failed
-    - Only numeric scores are accepted (no percentages)
-
-    **Assessment Rules:**
-
+    
+    ## Assessment Rules
+    
     **EAP Course:**
     - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
     - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
@@ -947,6 +970,13 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     - 45-50 weeks: 8 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
     - 51-56 weeks: 9 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
     - 57-60 weeks: 10 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
+    
+    ## Technical Notes
+    
+    - The app automatically refreshes data when the Excel file is updated
+    - All date formats are standardized as YYYY-MM-DD
+    - Phone numbers are automatically formatted to ensure they start with 0
+    - The system caches data for performance but will reload when changes are detected
     """)
 
 # Footer
@@ -954,7 +984,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666;'>
-        📧 SMEI Student Assessment Status | Contact Administrator for updates
+        📧 SMEI Student Progression | Contact Administrator for data updates
     </div>
     """,
     unsafe_allow_html=True
