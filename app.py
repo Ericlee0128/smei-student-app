@@ -819,7 +819,7 @@ if not df.empty:
         st.download_button(
             label="Download Full Dataset as CSV",
             data=csv,
-            file_name="SMEI_Student_Progression_Complete.csv",
+            file_name="SMEI Student Progression.csv",
             mime="text/csv",
             help="Download the complete student dataset without any filters applied"
         )
@@ -924,3 +924,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
