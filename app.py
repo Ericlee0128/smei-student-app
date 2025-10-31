@@ -139,7 +139,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Assessment rules - Updated with complete descriptions
+# Assessment rules - Updated with complete descriptions and proper order
 ASSESSMENT_RULES = {
     'EAP': {
         'assessments': [
@@ -187,6 +187,19 @@ ASSESSMENT_RULES = {
     }
 }
 
+# Define assessment order for consistent sorting
+ASSESSMENT_ORDER = [
+    'Elementary Mid Course Test',
+    'Elementary End Course Test',
+    'Pre Intermediate Mid Course Test',
+    'Pre Intermediate End Course Test',
+    'Intermediate Mid Course Test',
+    'Intermediate End Course Test',
+    'Upper Intermediate Mid Course Test',
+    'Upper Intermediate End Course Test',
+    'Advanced Mid Course Test',
+    'Advanced End Course Test'
+]
 
 # Load student data
 @st.cache_data
@@ -327,7 +340,7 @@ def calculate_test_status(student_data):
     }
 
 
-def get_students_by_assessment(df, assessment_name, course_filter="All"):
+def get_students_by_assessment(df, assessment_name, course_filter="All", status_filter="All"):
     """Get all students who should take a specific assessment"""
     students_with_assessment = []
     
@@ -345,17 +358,19 @@ def get_students_by_assessment(df, assessment_name, course_filter="All"):
             test_value = student.get(assessment_name, '')
             status, status_type = get_test_status(test_value)
             
-            students_with_assessment.append({
-                'StudentID': student['StudentID'],
-                'Name': student['Name'],
-                'Course': student['Course'],
-                'Start Date': student['Start Date'],
-                'Finish Date': student['Finish Date'],
-                'Duration (weeks)': student['Duration (weeks)'],
-                'Phone': student['Phone'],
-                'Status': status,
-                'Recorded Value': test_value if pd.notna(test_value) else 'Not Recorded'
-            })
+            # Apply status filter
+            if status_filter == "All" or status == status_filter:
+                students_with_assessment.append({
+                    'StudentID': student['StudentID'],
+                    'Name': student['Name'],
+                    'Course': student['Course'],
+                    'Start Date': student['Start Date'],
+                    'Finish Date': student['Finish Date'],
+                    'Duration (weeks)': student['Duration (weeks)'],
+                    'Phone': student['Phone'],
+                    'Status': status,
+                    'Recorded Value': test_value if pd.notna(test_value) else 'Not Recorded'
+                })
     
     return pd.DataFrame(students_with_assessment)
 
@@ -364,11 +379,10 @@ def get_all_assessments_overview(df, course_filter="All"):
     """Get overview of all assessments and students who need to take them"""
     assessment_overview = {}
     
-    # Get all unique assessments
-    all_assessments = list(set(
-        ASSESSMENT_RULES['EAP']['assessments'] + 
-        ASSESSMENT_RULES['General English']['assessments']
-    ))
+    # Get all unique assessments in the correct order
+    all_assessments = [assessment for assessment in ASSESSMENT_ORDER 
+                      if assessment in ASSESSMENT_RULES['General English']['assessments'] or 
+                      assessment in ASSESSMENT_RULES['EAP']['assessments']]
     
     for assessment in all_assessments:
         students_df = get_students_by_assessment(df, assessment, course_filter)
@@ -432,7 +446,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.title("🎓 Student Assessment Status")
 
-# Navigation
+# Navigation - Simplified to remove redundancy
 st.sidebar.header("🔍 Navigation")
 page = st.sidebar.radio("Go to:", ["Student Search", "Assessment Overview"])
 
@@ -646,16 +660,42 @@ if page == "Student Search":
             st.info("👆 Enter a student name or ID to search")
 
     else:  # Assessment Test search
+        # Get assessments in correct order
+        all_assessments = [assessment for assessment in ASSESSMENT_ORDER 
+                          if assessment in ASSESSMENT_RULES['General English']['assessments'] or 
+                          assessment in ASSESSMENT_RULES['EAP']['assessments']]
+        
         assessment_search = st.selectbox(
             "Select Assessment to Search:",
-            ["Select an assessment"] + 
-            list(set(ASSESSMENT_RULES['EAP']['assessments'] + ASSESSMENT_RULES['General English']['assessments']))
+            ["Select an assessment"] + all_assessments
         )
         
         if assessment_search != "Select an assessment":
-            assessment_results = get_students_by_assessment(filtered_df, assessment_search, 
-                                                          "General English" if course_filter == "General English" else 
-                                                          "EAP" if course_filter == "EAP" else "All")
+            # Add status filter for Pending + Failed
+            status_filter = st.radio(
+                "Show students with status:",
+                ["All", "Pending + Failed", "Pending", "Failed", "Passed"],
+                horizontal=True
+            )
+            
+            # Map the status filter to the actual status values
+            actual_status_filter = "All"
+            if status_filter == "Pending + Failed":
+                actual_status_filter = "All"  # We'll filter manually for this case
+            elif status_filter != "All":
+                actual_status_filter = status_filter
+            
+            assessment_results = get_students_by_assessment(
+                filtered_df, 
+                assessment_search, 
+                "General English" if course_filter == "General English" else 
+                "EAP" if course_filter == "EAP" else "All",
+                actual_status_filter
+            )
+            
+            # If "Pending + Failed" is selected, filter the results
+            if status_filter == "Pending + Failed":
+                assessment_results = assessment_results[assessment_results['Status'].isin(['Pending', 'Failed'])]
             
             if not assessment_results.empty:
                 st.subheader(f"📊 Students Requiring: {assessment_search}")
@@ -769,7 +809,7 @@ else:
             "EAP" if course_filter_overview == "EAP" else "All"
         )
         
-        # Create tabs for each assessment
+        # Create tabs for each assessment in the correct order
         assessment_tabs = st.tabs([assessment for assessment in assessment_overview.keys()])
         
         for i, (assessment_name, students_df) in enumerate(assessment_overview.items()):
@@ -803,18 +843,29 @@ else:
                     display_students_df['Finish Date'] = display_students_df['Finish Date'].dt.strftime('%Y-%m-%d')
                     display_students_df['Phone'] = display_students_df['Phone'].apply(format_phone)
                     
-                    # Display students by status
-                    status_tabs = st.tabs(["All Students", "Pending", "Failed", "Passed"])
+                    # Display students by status - Now including "Pending & Failed" tab
+                    status_tabs = st.tabs(["Pending & Failed", "All Students", "Pending", "Failed", "Passed"])
                     
                     # Define columns to display
                     display_columns = ['StudentID', 'Name', 'Course', 'Start Date', 'Finish Date', 'Duration (weeks)', 'Phone', 'Status', 'Recorded Value']
                     
-                    with status_tabs[0]:  # All
+                    with status_tabs[0]:  # Pending & Failed
+                        pending_failed_df = display_students_df[display_students_df['Status'].isin(['Pending', 'Failed'])][display_columns].copy()
+                        if not pending_failed_df.empty:
+                            pending_failed_df.index = pending_failed_df.index + 1
+                            st.dataframe(pending_failed_df, use_container_width=True)
+                            
+                            # Show count for Pending & Failed
+                            st.info(f"**Total Pending & Failed Students:** {len(pending_failed_df)}")
+                        else:
+                            st.info("No students with pending or failed status")
+                    
+                    with status_tabs[1]:  # All
                         display_df = display_students_df[display_columns].copy()
                         display_df.index = display_df.index + 1
                         st.dataframe(display_df, use_container_width=True)
                     
-                    with status_tabs[1]:  # Pending
+                    with status_tabs[2]:  # Pending
                         pending_df = display_students_df[display_students_df['Status'] == 'Pending'][display_columns].copy()
                         if not pending_df.empty:
                             pending_df.index = pending_df.index + 1
@@ -822,7 +873,7 @@ else:
                         else:
                             st.info("No students with pending status")
                     
-                    with status_tabs[2]:  # Failed
+                    with status_tabs[3]:  # Failed
                         failed_df = display_students_df[display_students_df['Status'] == 'Failed'][display_columns].copy()
                         if not failed_df.empty:
                             failed_df.index = failed_df.index + 1
@@ -830,7 +881,7 @@ else:
                         else:
                             st.info("No students with failed status")
                     
-                    with status_tabs[3]:  # Passed
+                    with status_tabs[4]:  # Passed
                         passed_df = display_students_df[display_students_df['Status'] == 'Passed'][display_columns].copy()
                         if not passed_df.empty:
                             passed_df.index = passed_df.index + 1
@@ -852,9 +903,9 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     3. View detailed assessment status for each student
     
     **Assessment Overview Page:**
-    1. View all assessments in separate tabs
+    1. View all assessments in separate tabs, now in proper order from Elementary to Advanced
     2. See which students need to complete each assessment
-    3. Filter by status (Pending, Failed, Passed) within each assessment
+    3. Filter by status (Pending & Failed, All, Pending, Failed, Passed) within each assessment
     4. Use course filter to focus on specific programs
     
     **Assessment Status Definitions:**
