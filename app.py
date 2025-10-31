@@ -444,6 +444,65 @@ def load_and_display_logo():
         return False
 
 
+def download_excel_template():
+    """Create a downloadable Excel template"""
+    try:
+        # Create a sample DataFrame with the same structure
+        sample_data = {
+            'StudentID': ['S001', 'S002'],
+            'Name': ['John Smith', 'Jane Doe'],
+            'Course': ['General English', 'EAP'],
+            'Start Date': [datetime.now(), datetime.now()],
+            'Finish Date': [datetime.now() + pd.Timedelta(days=60), datetime.now() + pd.Timedelta(days=90)],
+            'Duration (weeks)': [12, 15],
+            'Attendance': [85, 92],
+            'Phone': ['+61 412 345 678', '+61 423 456 789'],
+            'Elementary Mid Course Test': ['', ''],
+            'Elementary End Course Test': ['', ''],
+            'Pre Intermediate Mid Course Test': ['', ''],
+            'Pre Intermediate End Course Test': ['', ''],
+            'Intermediate Mid Course Test': ['65', ''],
+            'Intermediate End Course Test': ['', ''],
+            'Upper Intermediate Mid Course Test': ['', ''],
+            'Upper Intermediate End Course Test': ['', ''],
+            'Advanced Mid Course Test': ['', ''],
+            'Advanced End Course Test': ['', '']
+        }
+        
+        df_template = pd.DataFrame(sample_data)
+        
+        # Create a BytesIO buffer
+        buffer = io.BytesIO()
+        
+        # Write DataFrame to Excel
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_template.to_excel(writer, sheet_name='SMEI', index=False)
+            
+            # Get the workbook and worksheet
+            workbook = writer.book
+            worksheet = writer.sheets['SMEI']
+            
+            # Add some formatting
+            header_format = workbook.add_format({
+                'bold': True,
+                'text_wrap': True,
+                'valign': 'top',
+                'fg_color': '#D7E4BC',
+                'border': 1
+            })
+            
+            # Write the column headers with the defined format
+            for col_num, value in enumerate(df_template.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+        
+        buffer.seek(0)
+        
+        return buffer
+    except Exception as e:
+        st.error(f"Error creating template: {e}")
+        return None
+
+
 # Main application
 
 # Display SMEI Logo and Header
@@ -452,6 +511,18 @@ logo_displayed = load_and_display_logo()
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.title("🎓 SMEI Student Progression")
+
+# Download template button
+st.sidebar.header("📁 Data Management")
+if st.sidebar.button("📥 Download Excel Template"):
+    template_buffer = download_excel_template()
+    if template_buffer:
+        st.sidebar.download_button(
+            label="Download SMEI Student Progression Template",
+            data=template_buffer,
+            file_name="SMEI_Student_Progression_Template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # Load data
 df = load_student_data()
@@ -463,17 +534,6 @@ if not df.empty:
     total_students = len(df)
     eap_students = len(df[df['Course'] == 'EAP'])
     ge_students = len(df[df['Course'] == 'General English'])
-
-    # Calculate completion statistics
-    total_completed_tests = 0
-    total_passed_tests = 0
-    total_required_tests = 0
-
-    for idx, student in df.iterrows():
-        status = calculate_test_status(student)
-        total_completed_tests += len(status['passed_tests']) + len(status['failed_tests'])
-        total_passed_tests += len(status['passed_tests'])
-        total_required_tests += len(status['required_tests'])
 
     st.sidebar.metric("Total Students", total_students)
     st.sidebar.metric("EAP Students", eap_students)
@@ -734,10 +794,6 @@ else:  # Assessment Test search
             failed_students = len(assessment_results[assessment_results['Status'] == 'Failed'])
             pending_students = len(assessment_results[assessment_results['Status'] == 'Pending'])
             
-            # Calculate attendance statistics for these students
-            good_attendance_count = len(assessment_results[assessment_results['Attendance'] >= 80])
-            at_risk_attendance_count = len(assessment_results[assessment_results['Attendance'] < 80])
-            
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Total Students", total_students)
@@ -804,7 +860,7 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
 
     # Summary statistics
     st.subheader("📈 Summary Statistics")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric("Total Students", len(filtered_df))
@@ -812,87 +868,93 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
         st.metric("EAP Students", len(filtered_df[filtered_df['Course'] == 'EAP']))
     with col3:
         st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
-    with col4:
-        good_attendance_filtered = len(filtered_df[filtered_df['Attendance'] >= 80])
-        st.metric("Good Attendance", good_attendance_filtered)
 
 # Enhanced Instructions Section with Data Management Focus
 with st.expander("ℹ️ Instructions & Assessment Rules"):
     st.markdown("""
-    ## 应用程序使用指南
+    ## Application Usage Guide
     
-    **学生搜索选项:**
-    1. **按学生姓名/ID搜索**: 查找个别学生并查看他们的详细进度
-    2. **按评估测试搜索**: 查找所有需要完成特定评估的学生
+    **Student Search Options:**
+    1. **Search by Student Name/ID**: Find individual students and view their detailed progression
+    2. **Search by Assessment Test**: Find all students who need to complete a specific assessment
     
-    **筛选选项:**
-    - **课程筛选**: 按通用英语或EAP筛选
-    - **出勤率筛选** (仅学生搜索): 
-        - **良好 (≥80%)**: 符合学院出勤要求的学生
-        - **有风险 (<80%)**: 低于要求出勤率阈值的学生
-    - **状态筛选** (仅评估搜索): 
-        - **所有状态**: 显示所有学生
-        - **待完成+未通过**: 显示需要关注的学生
-        - **待完成**: 显示尚未完成测试的学生
-        - **未通过**: 显示测试未通过的学生
-        - **已通过**: 显示测试已通过的学生
-    - **完成日期**: 显示即将完成的学生(30天内)
+    **Filter Options:**
+    - **Course Filter**: Filter by General English or EAP
+    - **Attendance Filter** (Student Search only): 
+        - **Good (≥80%)**: Students meeting college attendance requirements
+        - **At Risk (<80%)**: Students below the required attendance threshold
+    - **Status Filter** (Assessment Search only): 
+        - **All**: Show all students
+        - **Pending + Failed**: Show students requiring attention
+        - **Pending**: Show students who haven't completed the test
+        - **Failed**: Show students who failed the test
+        - **Passed**: Show students who passed the test
+    - **Completion Date**: Show students finishing soon (within 30 days)
     
-    ## 搜索功能改进
+    ## Data Management
     
-    **统一搜索框:**
-    - 输入学生姓名或ID都可以搜索
-    - 系统会自动在姓名和ID字段中查找匹配项
-    - 支持部分匹配，不区分大小写
+    **Excel Template Download:**
+    - Use the "Download Excel Template" button in the sidebar to get the current data structure
+    - Update student information, assessment results, and attendance data in the Excel file
+    - Ensure the updated file is named "SMEI Student Progression.xlsx" and placed in the same folder as the app
+    - The app will automatically refresh data when the Excel file is updated
     
-    ## 出勤率跟踪
+    ## Search Function Improvements
     
-    **学院要求:**
-    - 最低出勤率要求: **80%**
-    - 出勤率低于80%的学生标记为 **有风险**
-    - 出勤状态用颜色编码以便识别:
-        - 🟢 **良好**: 80%及以上
-        - 🔴 **有风险**: 低于80%
+    **Unified Search Box:**
+    - Enter either student name or ID in the search box
+    - System automatically searches both name and ID fields
+    - Supports partial matching and case-insensitive search
     
-    ## 评估状态定义
+    ## Attendance Tracking
     
-    - **✅ 已通过**: 评估成功完成(关键词或分数 ≥ 50)
-    - **❌ 未通过**: 评估完成但未通过(关键词或分数 < 50)
-    - **⏳ 待完成**: 评估尚未尝试
+    **College Requirement:**
+    - Minimum attendance requirement: **80%**
+    - Students with attendance below 80% are marked as **At Risk**
+    - Attendance status is color-coded for easy identification:
+        - 🟢 **Good**: 80% and above
+        - 🔴 **At Risk**: Below 80%
     
-    ## 剩余测试计算
+    ## Assessment Status Definitions
     
-    - 剩余 = 所需测试 - 已通过测试
-    - 未通过的测试仍计入剩余，因为需要重考
+    - **✅ Passed**: Assessment completed successfully (keywords OR score ≥ 50)
+    - **❌ Failed**: Assessment completed but not passed (keywords OR score < 50)
+    - **⏳ Pending**: Assessment not yet attempted
     
-    ## 评估规则
+    ## Remaining Tests Calculation
     
-    **EAP课程:**
-    - 1-8周: 1个评估(中级期中课程测试)
-    - 9-14周: 2个评估(中级期中课程测试 + 中级期末课程测试)
-    - 15-20周: 3个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试)
-    - 21-26周: 4个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试)
-    - 27-32周: 5个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试)
-    - 33-36周: 6个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试 + 高级期末课程测试)
+    - Remaining = Required Tests - Passed Tests
+    - Failed tests are still counted as remaining because they need to be retaken
+    
+    ## Assessment Rules
+    
+    **EAP Course:**
+    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
+    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
+    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
+    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
+    - 27-32 weeks: 5 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
+    - 33-36 weeks: 6 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
 
-    **通用英语课程:**
-    - 1-8周: 1个评估(中级期中课程测试)
-    - 9-14周: 2个评估(中级期中课程测试 + 中级期末课程测试)
-    - 15-20周: 3个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试)
-    - 21-26周: 4个评估(中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试)
-    - 27-32周: 5个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试)
-    - 33-38周: 6个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试)
-    - 39-44周: 7个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试)
-    - 45-50周: 8个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试)
-    - 51-56周: 9个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试)
-    - 57-60周: 10个评估(初级期中课程测试 + 初级期末课程测试 + 准中级期中课程测试 + 准中级期末课程测试 + 中级期中课程测试 + 中级期末课程测试 + 中高级期中课程测试 + 中高级期末课程测试 + 高级期中课程测试 + 高级期末课程测试)
+    **General English Course:**
+    - 1-8 weeks: 1 assessment (Intermediate Mid Course Test)
+    - 9-14 weeks: 2 assessments (Intermediate Mid Course Test + Intermediate End Course Test)
+    - 15-20 weeks: 3 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
+    - 21-26 weeks: 4 assessments (Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
+    - 27-32 weeks: 5 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test)
+    - 33-38 weeks: 6 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test)
+    - 39-44 weeks: 7 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test)
+    - 45-50 weeks: 8 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test)
+    - 51-56 weeks: 9 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test)
+    - 57-60 weeks: 10 assessments (Elementary Mid Course Test + Elementary End Course Test + Pre Intermediate Mid Course Test + Pre Intermediate End Course Test + Intermediate Mid Course Test + Intermediate End Course Test + Upper Intermediate Mid Course Test + Upper Intermediate End Course Test + Advanced Mid Course Test + Advanced End Course Test)
     
-    ## 技术说明
+    ## Technical Notes
     
-    - 当Excel文件更新时，应用程序会自动刷新数据
-    - 所有日期格式都标准化为YYYY-MM-DD
-    - 电话号码会自动格式化以确保以0开头
-    - 系统会缓存数据以提高性能，但检测到更改时会重新加载
+    - The app automatically refreshes data when the Excel file is updated
+    - All date formats are standardized as YYYY-MM-DD
+    - Phone numbers are automatically formatted to ensure they start with 0
+    - The system caches data for performance but will reload when changes are detected
+    - For data accuracy, always use the provided Excel template structure when updating student information
     """)
 
 # Footer
