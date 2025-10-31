@@ -253,7 +253,7 @@ def extract_score(value_str):
     value_str = str(value_str).strip()
     
     # Remove all non-digit characters (except decimal point)
-    cleaned = re.sub(r[^\d.], '', value_str)
+    cleaned = re.sub(r'[^\d.]', '', value_str)
     
     try:
         score = float(cleaned)
@@ -979,3 +979,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
