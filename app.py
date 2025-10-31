@@ -581,23 +581,17 @@ st.title("🎓 SMEI Student Progression")
 # Load data
 df = load_student_data()
 
-# Quick Stats in Sidebar
+# Quick Stats in Sidebar - UPDATED: Removed Avg Attendance and Avg Progression
 st.sidebar.header("📊 Quick Stats")
 
 if not df.empty:
     total_students = len(df)
     eap_students = len(df[df['Course'] == 'EAP'])
     ge_students = len(df[df['Course'] == 'General English'])
-    
-    # Calculate average attendance and progression
-    avg_attendance = df['Attendance'].mean()
-    avg_progression = df['Progression Rate'].mean()
 
     st.sidebar.metric("Total Students", total_students)
     st.sidebar.metric("EAP Students", eap_students)
     st.sidebar.metric("GE Students", ge_students)
-    st.sidebar.metric("Avg Attendance", f"{avg_attendance:.1f}%")
-    st.sidebar.metric("Avg Progression", f"{avg_progression:.1f}%")
 
 # Search and Filter Section - IMPROVED VERSION
 st.markdown('<div class="filter-section">', unsafe_allow_html=True)
@@ -616,9 +610,9 @@ with col2:
         ["All Courses", "General English", "EAP"]
     )
 
-# Conditional filters based on search type
+# Conditional filters based on search type - UPDATED: Moved date filter to Student search
 if search_type == "Student Name/ID":
-    col3, col4 = st.columns(2)
+    col3, col4, col5 = st.columns(3)  # Added extra column for date filter
     
     with col3:
         # Attendance filter only for Student search
@@ -633,6 +627,10 @@ if search_type == "Student Name/ID":
             "Filter by Progression:",
             ["All", "Excellent (90-100%)", "Good (50-89%)", "Poor (0-49%)"]
         )
+    
+    with col5:
+        # Date filter for upcoming completions - MOVED to Student search
+        show_upcoming = st.checkbox("Show students finishing soon (within 30 days)")
 
 else:  # Assessment Test search
     col3, col4 = st.columns(2)
@@ -681,6 +679,15 @@ if search_type == "Student Name/ID" and not df.empty:
         filtered_df = filtered_df[(filtered_df['Progression Rate'] >= 50) & (filtered_df['Progression Rate'] < 90)]
     elif progression_filter == "Poor (0-49%)":
         filtered_df = filtered_df[filtered_df['Progression Rate'] < 50]
+    
+    # Apply date filter if selected - ADDED for Student search
+    if show_upcoming:
+        today = pd.Timestamp.now()
+        thirty_days_later = today + pd.Timedelta(days=30)
+        filtered_df = filtered_df[
+            (filtered_df['Finish Date'] >= today) & 
+            (filtered_df['Finish Date'] <= thirty_days_later)
+        ]
 
 # For Assessment search: we'll handle filtering in the assessment function
 else:
@@ -963,9 +970,9 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
     display_df.index = display_df.index + 1
     st.dataframe(display_df, use_container_width=True)
 
-    # Summary statistics
+    # Summary statistics - UPDATED: Removed Avg Progression
     st.subheader("📈 Summary Statistics")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric("Total Students", len(filtered_df))
@@ -973,9 +980,6 @@ if not df.empty and search_type == "Student Name/ID" and not search_term:
         st.metric("EAP Students", len(filtered_df[filtered_df['Course'] == 'EAP']))
     with col3:
         st.metric("GE Students", len(filtered_df[filtered_df['Course'] == 'General English']))
-    with col4:
-        avg_progression = filtered_df['Progression Rate'].mean()
-        st.metric("Avg Progression", f"{avg_progression:.1f}%")
 
 # Download Section - Added between main content and instructions
 if not df.empty:
@@ -1018,6 +1022,8 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
         - **Excellent (90-100%)**: Students with excellent progression
         - **Good (50-89%)**: Students with good progression  
         - **Poor (0-49%)**: Students needing improvement
+    - **Date Filter** (Both search types):
+        - **Show students finishing soon**: Show students whose courses end within 30 days
     - **Status Filter** (Assessment Search only): 
         - **All**: Show all students
         - **Pending + Failed**: Show students requiring attention
