@@ -253,7 +253,7 @@ def extract_score(value_str):
     value_str = str(value_str).strip()
     
     # Remove all non-digit characters (except decimal point)
-    cleaned = re.sub(r'[^\d.]', '', value_str)
+    cleaned = re.sub(r[^\d.], '', value_str)
     
     try:
         score = float(cleaned)
@@ -467,26 +467,32 @@ def create_excel_download(df):
         # Create a BytesIO buffer
         buffer = io.BytesIO()
         
-        # Write DataFrame to Excel with sheet name 'SMEI'
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, sheet_name='SMEI', index=False)
-            
-            # Get the workbook and worksheet
-            workbook = writer.book
-            worksheet = writer.sheets['SMEI']
-            
-            # Add some formatting
-            header_format = workbook.add_format({
-                'bold': True,
-                'text_wrap': True,
-                'valign': 'top',
-                'fg_color': '#D7E4BC',
-                'border': 1
-            })
-            
-            # Write the column headers with the defined format
-            for col_num, value in enumerate(df.columns.values):
-                worksheet.write(0, col_num, value, header_format)
+        # Try to use xlsxwriter first, fall back to openpyxl if not available
+        try:
+            # Write DataFrame to Excel with sheet name 'SMEI'
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df.to_excel(writer, sheet_name='SMEI', index=False)
+                
+                # Get the workbook and worksheet
+                workbook = writer.book
+                worksheet = writer.sheets['SMEI']
+                
+                # Add some formatting
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'text_wrap': True,
+                    'valign': 'top',
+                    'fg_color': '#D7E4BC',
+                    'border': 1
+                })
+                
+                # Write the column headers with the defined format
+                for col_num, value in enumerate(df.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+        except ImportError:
+            # Fall back to openpyxl if xlsxwriter is not available
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='SMEI', index=False)
         
         buffer.seek(0)
         return buffer
@@ -860,34 +866,19 @@ if not df.empty:
     st.markdown('<div class="download-section">', unsafe_allow_html=True)
     st.subheader("📥 Download Complete Student Data")
     
-    # Create download options
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Prepare CSV for download (original unfiltered data)
-        csv = df.to_csv(index=False)
-        
+    # Create Excel download
+    excel_buffer = create_excel_download(df)
+    if excel_buffer:
         st.download_button(
-            label="Download Full Dataset as CSV",
-            data=csv,
-            file_name="SMEI Student Progression.csv",
-            mime="text/csv",
-            help="Download the complete student dataset without any filters applied"
+            label="Download Full Dataset as Excel",
+            data=excel_buffer,
+            file_name="SMEI Student Progression.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="Download the complete student dataset in Excel format without any filters applied"
         )
-        st.caption("This download contains all student data without any filters applied")
-    
-    with col2:
-        # Create Excel download
-        excel_buffer = create_excel_download(df)
-        if excel_buffer:
-            st.download_button(
-                label="Download Full Dataset as Excel",
-                data=excel_buffer,
-                file_name="SMEI Student Progression.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                help="Download the complete student dataset in Excel format without any filters applied"
-            )
-            st.caption("Excel file with sheet named 'SMEI' containing all student data")
+        st.caption("Excel file with sheet named 'SMEI' containing all student data without any filters applied")
+    else:
+        st.warning("Excel download is currently unavailable")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -916,9 +907,8 @@ with st.expander("ℹ️ Instructions & Assessment Rules"):
     ## Data Export
     
     **Download Options:**
-    - **CSV Download**: Download all student data in CSV format
     - **Excel Download**: Download all student data in Excel format with sheet name "SMEI"
-    - Both downloads contain the complete dataset without any filters applied
+    - The download contains the complete dataset without any filters applied
     - Useful for backup purposes or further analysis in other tools
     
     ## Search Function Improvements
